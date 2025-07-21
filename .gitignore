@@ -45,3 +45,8 @@ packages/**/esm
 **/build/*.tgz
 *.sqlite
 docs/.vitepress/cache
+
+# Cloudflare Worker types (test-specific)
+worker-configuration.d.ts
+**/test/cf-worker/types.d.ts
+**/test/cf-worker/worker-configuration.d.ts
