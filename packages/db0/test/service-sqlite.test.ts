@@ -246,6 +246,44 @@ describe('sqlService (sqlite integration)', () => {
       expect(users).toHaveLength(1)
       expect(users[0].name).toBe('Alice')
     })
+
+    it('finds with paginate: true returns Paginated object', async () => {
+      const result = await service.find({ query: { $limit: 2, $skip: 1, $sort: { name: 1 } }, paginate: true })
+      expect(result).toHaveProperty('total', 3)
+      expect(result).toHaveProperty('limit', 2)
+      expect(result).toHaveProperty('skip', 1)
+      expect(result).toHaveProperty('data')
+      expect(Array.isArray(result.data)).toBe(true)
+      expect(result.data).toHaveLength(2)
+      expect(result.data.map((u) => u.name)).toEqual(['Bob', 'Doug'])
+    })
+
+    it('finds with paginate: false returns array directly', async () => {
+      const result = await service.find({ query: { $sort: { name: 1 } }, paginate: false })
+      expect(Array.isArray(result)).toBe(true)
+      expect(result).toHaveLength(3)
+      expect(result.map((u) => u.name)).toEqual(['Alice', 'Bob', 'Doug'])
+    })
+
+    it('finds without paginate param returns array directly', async () => {
+      const result = await service.find({ query: { $sort: { name: 1 } } })
+      expect(Array.isArray(result)).toBe(true)
+      expect(result).toHaveLength(3)
+      expect(result.map((u) => u.name)).toEqual(['Alice', 'Bob', 'Doug'])
+    })
+
+    it('paginated find respects WHERE clause in count', async () => {
+      const result = await service.find({ query: { age: { $gt: 20 }, $sort: { name: 1 } }, paginate: true })
+      expect(result.total).toBe(2) // Only Bob and Doug are > 20
+      expect(result.data).toHaveLength(2)
+      expect(result.data.map((u) => u.name)).toEqual(['Bob', 'Doug'])
+    })
+
+    it('paginated find with no matches returns empty data', async () => {
+      const result = await service.find({ query: { name: 'NonExistent' }, paginate: true })
+      expect(result.total).toBe(0)
+      expect(result.data).toHaveLength(0)
+    })
   })
 
   describe('get', () => {

@@ -8,6 +8,13 @@ export interface Db0Identifier {
 export type Db0SqlArg = Primitive | Db0Identifier
 export type DbRecord = Record<string, Primitive>
 
+export interface Paginated<T> {
+  total: number
+  limit: number
+  skip: number
+  data: T[]
+}
+
 interface Db0QueryOperators {
   $like?: string
   $ilike?: string
@@ -35,6 +42,7 @@ export interface Db0Query {
 
 export interface Db0Params {
   query?: Db0Query
+  paginate?: boolean
   [key: string]: any
 }
 export interface Db0ParamsMany extends Db0Params {
@@ -107,7 +115,45 @@ export class Db0Service<RT extends DbRecord> {
    * @param params - Query and options for the find operation.
    * @returns Array of records matching the criteria.
    */
-  async find(params?: Db0Params): Promise<RT[]> {
+  async find(params?: Db0Params & { paginate?: false }): Promise<RT[]>
+  async find(params: Db0Params & { paginate: true }): Promise<Paginated<RT>>
+  async find(params?: Db0Params): Promise<RT[] | Paginated<RT>> {
+    const query = params?.query || {}
+    const isPaginated = params?.paginate === true
+
+    if (isPaginated) {
+      // Get total count first for pagination
+      const countQuery = { ...query }
+      delete countQuery.$limit
+      delete countQuery.$skip
+      delete countQuery.$sort
+      delete countQuery.$select
+
+      const { sql: countWhereSql, vals: countWhereVals } = this.buildWhere(countQuery)
+      const countWhereClause = countWhereSql ? `WHERE ${countWhereSql}` : ''
+      const countSql = `SELECT COUNT(*) as total FROM ${Db0Service.quoteId(
+        this.table,
+        this.dialect
+      )} ${countWhereClause}`.trim()
+      const countResult = await this.runSqlAll(countSql, countWhereVals)
+      const total = Number((countResult[0] as any).total || 0)
+
+      // Get paginated data
+      const data = await this.findData(params)
+
+      return {
+        total,
+        limit: query.$limit || 0,
+        skip: query.$skip || 0,
+        data
+      }
+    } else {
+      // Non-paginated, return array directly
+      return this.findData(params)
+    }
+  }
+
+  private async findData(params?: Db0Params): Promise<RT[]> {
     const query = params?.query || {}
     let columns = '*'
     let orderBy = ''
