@@ -1,51 +1,101 @@
-/* eslint-disable no-console */
-import { describe, it, after } from 'node:test'
-import basicTests from './basic'
-import { AdapterTestName, Person } from './declarations'
-import methodTests from './methods'
-import syntaxTests from './syntax'
-import { AdapterInterface } from '@wingshq/adapter-commons'
+// Type definitions and configurations
+export * from './types.js'
 
-export const adapterTests =
-  (testNames: AdapterTestName[]) =>
-  <Service extends AdapterInterface<Person>>(service: Service, idProp: string) => {
-    const skippedTests: AdapterTestName[] = []
-    const allTests: AdapterTestName[] = []
+// Common tests that work for both interfaces
+export * from './common/index.js'
 
-    const test = (name: AdapterTestName, runner: any) => {
-      const skip = !testNames.includes(name)
-      const its = skip ? it.skip : it
+// Wings-specific tests
+export * from './wings/index.js'
 
-      if (skip) {
-        skippedTests.push(name)
-      }
+// FeathersJS-specific tests
+export * from './feathersjs/index.js'
 
-      allTests.push(name)
+// Re-export individual test functions for fine-grained control
+export {
+  // Common tests
+  testBasicProperties,
+  testCreate,
+  testGet,
+  testBasicFind,
+  testPatch,
+  testUpdate,
+  testRemove,
+  testBasicQueryOperators,
+  commonTests
+} from './common/index.js'
 
-      its(name, runner)
-    }
+export {
+  // Wings tests
+  testWingsPagination,
+  testWingsNullReturns,
+  testWingsBulkOperations,
+  testWingsQueryOperators,
+  testWingsSingleOperationSafety,
+  wingsTests
+} from './wings/index.js'
 
-    describe(`Adapter tests for '${
-      service?.constructor?.name || 'unknown'
-    }' service with '${idProp}' id property`, () => {
-      after(() => {
-        testNames.forEach((name) => {
-          if (!allTests.includes(name)) {
-            console.error(`WARNING: '${name}' test is not part of the test suite`)
-          }
-        })
-        if (skippedTests.length) {
-          console.log(
-            `\nSkipped the following ${skippedTests.length} Feathers adapter test(s) out of ${allTests.length} total:`
-          )
-          console.log(JSON.stringify(skippedTests, null, '  '))
-        }
-      })
+export {
+  // FeathersJS tests
+  testFeathersErrorHandling,
+  testFeathersPagination,
+  testFeathersBulkOperations,
+  testFeathersUpdate,
+  feathersTests
+} from './feathersjs/index.js'
 
-      basicTests(test, service, idProp)
-      methodTests(test, service, idProp)
-      syntaxTests(test, service, idProp)
-    })
-  }
+// Full test suite composers for easy usage
+import { describe } from 'node:test'
+import { WingsAdapter, FeathersAdapter, Person, TestConfig, WINGS_CONFIG, FEATHERS_CONFIG } from './types.js'
+import { commonTests } from './common/index.js'
+import { wingsTests } from './wings/index.js'
+import { feathersTests } from './feathersjs/index.js'
 
-export * from './declarations'
+/**
+ * Complete test suite for Wings adapters
+ * Includes common tests + Wings-specific tests
+ */
+export function fullWingsTests<T extends WingsAdapter<Person>>(
+  service: T,
+  idProp: string,
+  config: TestConfig = WINGS_CONFIG
+) {
+  describe('Full Wings Adapter Test Suite', () => {
+    commonTests(service, idProp, config)
+    wingsTests(service, idProp, config)
+  })
+}
+
+/**
+ * Complete test suite for FeathersJS adapters
+ * Includes common tests + FeathersJS-specific tests
+ */
+export function fullFeathersTests<T extends FeathersAdapter<Person>>(
+  service: T,
+  idProp: string,
+  config: TestConfig = FEATHERS_CONFIG
+) {
+  describe('Full FeathersJS Adapter Test Suite', () => {
+    commonTests(service, idProp, { ...config, alwaysPaginate: true })
+    feathersTests(service, idProp, config)
+  })
+}
+
+/**
+ * Complete test suite for testing both Wings and FeathersJS compatibility
+ * Use this for testing wrapper implementations
+ */
+export function fullCompatibilityTests<T extends WingsAdapter<Person> & FeathersAdapter<Person>>(
+  service: T,
+  idProp: string,
+  wingsConfig: TestConfig = WINGS_CONFIG,
+  feathersConfig: TestConfig = FEATHERS_CONFIG
+) {
+  describe('Full Compatibility Test Suite', () => {
+    commonTests(service, idProp, wingsConfig)
+    wingsTests(service, idProp, wingsConfig)
+    feathersTests(service, idProp, feathersConfig)
+  })
+}
+
+// Legacy compatibility - export the old interface for existing adapters
+export const adapterTests = fullFeathersTests

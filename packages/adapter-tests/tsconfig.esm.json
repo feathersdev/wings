@@ -1,10 +1,7 @@
 {
-  "extends": "../../tsconfig",
-  "include": [
-    "src/**/*.ts"
-  ],
+  "extends": "./tsconfig.json",
   "compilerOptions": {
-    "outDir": "lib",
+    "outDir": "esm",
     "module": "es2022",
     "moduleResolution": "bundler",
     "rewriteRelativeImportExtensions": true,

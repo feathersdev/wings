@@ -1,4 +1,4 @@
-/// <reference path="../../../digimgr-api/worker-configuration.d.ts" />
+// Types will be available through wrangler configuration
 import type { Connector, Primitive } from 'db0'
 
 export interface SqlStorageCursorWithMeta<
