@@ -44,8 +44,16 @@ export {
 } from './feathersjs/index.js'
 
 // Full test suite composers for easy usage
-import { describe } from 'node:test'
-import { WingsAdapter, FeathersAdapter, Person, TestConfig, WINGS_CONFIG, FEATHERS_CONFIG } from './types.js'
+import { describe } from 'vitest'
+import {
+  WingsAdapter,
+  FeathersAdapter,
+  Person,
+  TestConfig,
+  WINGS_CONFIG,
+  FEATHERS_CONFIG,
+  ServiceFactory
+} from './types.js'
 import { commonTests } from './common/index.js'
 import { wingsTests } from './wings/index.js'
 import { feathersTests } from './feathersjs/index.js'
@@ -55,13 +63,13 @@ import { feathersTests } from './feathersjs/index.js'
  * Includes common tests + Wings-specific tests
  */
 export function fullWingsTests<T extends WingsAdapter<Person>>(
-  service: T,
+  serviceFactory: ServiceFactory<T>,
   idProp: string,
   config: TestConfig = WINGS_CONFIG
 ) {
   describe('Full Wings Adapter Test Suite', () => {
-    commonTests(service, idProp, config)
-    wingsTests(service, idProp, config)
+    commonTests(serviceFactory, idProp, config)
+    wingsTests(serviceFactory, idProp, config)
   })
 }
 
@@ -70,13 +78,13 @@ export function fullWingsTests<T extends WingsAdapter<Person>>(
  * Includes common tests + FeathersJS-specific tests
  */
 export function fullFeathersTests<T extends FeathersAdapter<Person>>(
-  service: T,
+  serviceFactory: ServiceFactory<T>,
   idProp: string,
   config: TestConfig = FEATHERS_CONFIG
 ) {
   describe('Full FeathersJS Adapter Test Suite', () => {
-    commonTests(service, idProp, { ...config, alwaysPaginate: true })
-    feathersTests(service, idProp, config)
+    commonTests(serviceFactory, idProp, { ...config, alwaysPaginate: true })
+    feathersTests(serviceFactory, idProp, config)
   })
 }
 
@@ -85,15 +93,15 @@ export function fullFeathersTests<T extends FeathersAdapter<Person>>(
  * Use this for testing wrapper implementations
  */
 export function fullCompatibilityTests<T extends WingsAdapter<Person> & FeathersAdapter<Person>>(
-  service: T,
+  serviceFactory: ServiceFactory<T>,
   idProp: string,
   wingsConfig: TestConfig = WINGS_CONFIG,
   feathersConfig: TestConfig = FEATHERS_CONFIG
 ) {
   describe('Full Compatibility Test Suite', () => {
-    commonTests(service, idProp, wingsConfig)
-    wingsTests(service, idProp, wingsConfig)
-    feathersTests(service, idProp, feathersConfig)
+    commonTests(serviceFactory, idProp, wingsConfig)
+    wingsTests(serviceFactory, idProp, wingsConfig)
+    feathersTests(serviceFactory, idProp, feathersConfig)
   })
 }
 

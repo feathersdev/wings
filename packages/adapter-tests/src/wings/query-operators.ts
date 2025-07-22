@@ -1,16 +1,17 @@
-import { describe, it, beforeEach, afterEach } from 'node:test'
-import assert from 'assert'
-import { WingsAdapter, Person, TestConfig, WINGS_CONFIG } from '../types.js'
+import { describe, it, beforeEach, afterEach, expect } from 'vitest'
+import { WingsAdapter, Person, TestConfig, WINGS_CONFIG, ServiceFactory } from '../types.js'
 
 export function testWingsQueryOperators<T extends WingsAdapter<Person>>(
-  service: T,
+  serviceFactory: ServiceFactory<T>,
   idProp: string,
   _config: TestConfig = WINGS_CONFIG
 ) {
   describe('Wings Query Operators', () => {
+    let service: T
     let testData: Person[] = []
 
     beforeEach(async () => {
+      service = serviceFactory()
       const data = [
         { name: 'Alice', age: 25 },
         { name: 'Bob', age: null },
@@ -25,7 +26,7 @@ export function testWingsQueryOperators<T extends WingsAdapter<Person>>(
       for (const item of testData) {
         try {
           await service.remove(item[idProp])
-        } catch (error) {
+        } catch (_error) {
           // Ignore cleanup errors
         }
       }
@@ -37,11 +38,11 @@ export function testWingsQueryOperators<T extends WingsAdapter<Person>>(
         const result = await service.find({ query: { name: { $like: 'A%' } } })
         const data = Array.isArray(result) ? result : result.data
 
-        assert.ok(Array.isArray(data))
-        assert.ok(data.length >= 2, 'Should find Alice and ALICE')
-        const names = data.map((item) => item.name)
-        assert.ok(names.includes('Alice'))
-        assert.ok(names.includes('ALICE'))
+        expect(Array.isArray(data)).toBe(true)
+        expect(data.length >= 2).toBe(true)
+        const names = data.map((item: any) => item.name)
+        expect(names.includes('Alice')).toBe(true)
+        expect(names.includes('ALICE')).toBe(true)
       })
     }
 
@@ -50,10 +51,10 @@ export function testWingsQueryOperators<T extends WingsAdapter<Person>>(
         const result = await service.find({ query: { name: { $ilike: 'alice' } } })
         const data = Array.isArray(result) ? result : result.data
 
-        assert.ok(Array.isArray(data))
-        assert.strictEqual(data.length, 3, 'Should find all variations of Alice')
-        const names = data.map((item) => item.name).sort()
-        assert.deepStrictEqual(names, ['ALICE', 'Alice', 'alice'])
+        expect(Array.isArray(data)).toBe(true)
+        expect(data.length).toBe(3)
+        const names = data.map((item: any) => item.name).sort()
+        expect(names).toEqual(['ALICE', 'Alice', 'alice'])
       })
     }
 
@@ -63,16 +64,16 @@ export function testWingsQueryOperators<T extends WingsAdapter<Person>>(
         const nullResult = await service.find({ query: { age: { $isNull: true } } })
         const nullData = Array.isArray(nullResult) ? nullResult : nullResult.data
 
-        assert.ok(Array.isArray(nullData))
-        assert.strictEqual(nullData.length, 1, 'Should find 1 item with null age')
-        assert.strictEqual(nullData[0].name, 'Bob')
+        expect(Array.isArray(nullData)).toBe(true)
+        expect(nullData.length).toBe(1)
+        expect(nullData[0].name).toBe('Bob')
 
         // Test $isNull: false
         const notNullResult = await service.find({ query: { age: { $isNull: false } } })
         const notNullData = Array.isArray(notNullResult) ? notNullResult : notNullResult.data
 
-        assert.ok(Array.isArray(notNullData))
-        assert.strictEqual(notNullData.length, 3, 'Should find 3 items with non-null age')
+        expect(Array.isArray(notNullData)).toBe(true)
+        expect(notNullData.length).toBe(3)
       })
     }
   })

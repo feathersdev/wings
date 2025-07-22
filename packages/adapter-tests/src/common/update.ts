@@ -1,17 +1,18 @@
-import { describe, it, beforeEach, afterEach } from 'node:test'
-import assert from 'assert'
-import { BaseAdapter, Person, TestConfig, COMMON_CONFIG } from '../types.js'
+import { describe, it, beforeEach, afterEach, expect } from 'vitest'
+import { BaseAdapter, Person, TestConfig, COMMON_CONFIG, ServiceFactory } from '../types.js'
 
 export function testUpdate<T extends BaseAdapter<Person>>(
-  service: T,
+  serviceFactory: ServiceFactory<T>,
   idProp: string,
   config: TestConfig = COMMON_CONFIG
 ) {
   describe('Update', () => {
+    let service: T
     let doug: Person
     let createdItems: Person[] = []
 
     beforeEach(async () => {
+      service = serviceFactory()
       const result = await service.create({
         name: 'Doug',
         age: 32
@@ -24,7 +25,9 @@ export function testUpdate<T extends BaseAdapter<Person>>(
       for (const item of createdItems) {
         try {
           await service.remove(item[idProp])
-        } catch (error: any) {}
+        } catch (_error: any) {
+          // Ignore cleanup errors
+        }
       }
       createdItems = []
     })
@@ -37,9 +40,9 @@ export function testUpdate<T extends BaseAdapter<Person>>(
       }
 
       const updated = await (service as any).update(doug[idProp], { name: 'Dougie', age: 33 })
-      assert.ok(updated, 'Should return updated record')
-      assert.strictEqual(updated.name, 'Dougie')
-      assert.strictEqual(updated.age, 33)
+      expect(updated).toBeTruthy()
+      expect(updated.name).toBe('Dougie')
+      expect(updated.age).toBe(33)
     })
 
     it('should support $select', async () => {
@@ -52,10 +55,10 @@ export function testUpdate<T extends BaseAdapter<Person>>(
         { name: 'Dougie', age: 33 },
         { query: { $select: ['name'] } }
       )
-      assert.ok(updated, 'Should return updated record')
-      assert.strictEqual(updated.name, 'Dougie')
-      assert.ok(updated[idProp], 'Should include id field')
-      assert.strictEqual(updated.age, undefined, 'Should not include unselected fields')
+      expect(updated).toBeTruthy()
+      expect(updated.name).toBe('Dougie')
+      expect(updated[idProp]).toBeTruthy()
+      expect(updated.age).toBeUndefined()
     })
 
     it('should update with query', async () => {
@@ -68,8 +71,8 @@ export function testUpdate<T extends BaseAdapter<Person>>(
         { name: 'Dougie', age: 33 },
         { query: { name: 'Doug' } }
       )
-      assert.ok(updated, 'Should return updated record when query matches')
-      assert.strictEqual(updated.name, 'Dougie')
+      expect(updated).toBeTruthy()
+      expect(updated.name).toBe('Dougie')
     })
 
     it('should handle not found appropriately', async () => {
@@ -77,12 +80,13 @@ export function testUpdate<T extends BaseAdapter<Person>>(
         return
       }
 
-      const result = await (service as any).update('non-existent-id', { name: 'Updated', age: 99 })
-
       if (config.throwOnNotFound) {
-        // Should be handled by error handling tests
+        await expect(
+          (service as any).update('non-existent-id', { name: 'Updated', age: 99 })
+        ).rejects.toThrow()
       } else {
-        assert.strictEqual(result, null, 'Should return null when not found')
+        const result = await (service as any).update('non-existent-id', { name: 'Updated', age: 99 })
+        expect(result).toBe(null)
       }
     })
 
@@ -91,16 +95,17 @@ export function testUpdate<T extends BaseAdapter<Person>>(
         return
       }
 
-      const result = await (service as any).update(
-        doug[idProp],
-        { name: 'Updated', age: 99 },
-        { query: { name: 'NotDoug' } }
-      )
-
       if (config.throwOnNotFound) {
-        // Should be handled by error handling tests
+        await expect(
+          (service as any).update(doug[idProp], { name: 'Updated', age: 99 }, { query: { name: 'NotDoug' } })
+        ).rejects.toThrow()
       } else {
-        assert.strictEqual(result, null, "Should return null when query doesn't match")
+        const result = await (service as any).update(
+          doug[idProp],
+          { name: 'Updated', age: 99 },
+          { query: { name: 'NotDoug' } }
+        )
+        expect(result).toBe(null)
       }
     })
 
@@ -113,17 +118,21 @@ export function testUpdate<T extends BaseAdapter<Person>>(
       const alice = Array.isArray(aliceResult) ? aliceResult[0] : aliceResult
       createdItems.push(alice)
 
-      const updated = await (service as any).update(
-        doug[idProp],
-        { name: 'Updated', age: 99 },
-        { query: { [idProp]: alice[idProp] } }
-      )
-
       if (config.throwOnNotFound) {
-        // Should be handled by error handling tests
-        assert.strictEqual(updated, null, 'Should return null for mismatched query')
+        await expect(
+          (service as any).update(
+            doug[idProp],
+            { name: 'Updated', age: 99 },
+            { query: { [idProp]: alice[idProp] } }
+          )
+        ).rejects.toThrow()
       } else {
-        assert.strictEqual(updated, null, 'Should return null for mismatched query')
+        const updated = await (service as any).update(
+          doug[idProp],
+          { name: 'Updated', age: 99 },
+          { query: { [idProp]: alice[idProp] } }
+        )
+        expect(updated).toBe(null)
       }
     })
   })

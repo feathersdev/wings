@@ -1,21 +1,25 @@
-import { describe, it, afterEach } from 'node:test'
-import assert from 'assert'
-import { BaseAdapter, Person, TestConfig, COMMON_CONFIG } from '../types.js'
+import { describe, it, beforeEach, afterEach, expect } from 'vitest'
+import { BaseAdapter, Person, TestConfig, COMMON_CONFIG, ServiceFactory } from '../types.js'
 
 export function testCreate<T extends BaseAdapter<Person>>(
-  service: T,
+  serviceFactory: ServiceFactory<T>,
   idProp: string,
   _config: TestConfig = COMMON_CONFIG
 ) {
   describe('Create', () => {
+    let service: T
     let createdItems: Person[] = []
+
+    beforeEach(() => {
+      service = serviceFactory()
+    })
 
     afterEach(async () => {
       // Clean up created items
       for (const item of createdItems) {
         try {
           await service.remove(item[idProp])
-        } catch (error) {
+        } catch (_error) {
           // Ignore cleanup errors
         }
       }
@@ -26,11 +30,11 @@ export function testCreate<T extends BaseAdapter<Person>>(
       const data = { name: 'Test User', age: 25 }
       const result = await service.create(data)
 
-      assert.ok(result, 'Result should exist')
+      expect(result).toBeDefined()
       const item = Array.isArray(result) ? result[0] : result
-      assert.strictEqual(item.name, 'Test User')
-      assert.strictEqual(item.age, 25)
-      assert.ok(item[idProp], 'Should have id property')
+      expect(item.name).toBe('Test User')
+      expect(item.age).toBe(25)
+      expect(item[idProp]).toBeDefined()
 
       createdItems.push(item)
     })
@@ -42,12 +46,12 @@ export function testCreate<T extends BaseAdapter<Person>>(
       ]
       const result = await service.create(data)
 
-      assert.ok(Array.isArray(result), 'Result should be an array')
-      assert.strictEqual(result.length, 2)
-      assert.strictEqual(result[0].name, 'User 1')
-      assert.strictEqual(result[1].name, 'User 2')
+      expect(Array.isArray(result)).toBe(true)
+      expect((result as any[]).length).toBe(2)
+      expect((result as any[])[0].name).toBe('User 1')
+      expect((result as any[])[1].name).toBe('User 2')
 
-      createdItems.push(...result)
+      createdItems.push(...(result as any[]))
     })
   })
 }

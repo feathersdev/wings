@@ -1,17 +1,18 @@
-import { describe, it, beforeEach, afterEach } from 'node:test'
-import assert from 'assert'
-import { WingsAdapter, Person, TestConfig, WINGS_CONFIG } from '../types.js'
+import { describe, it, beforeEach, afterEach, expect } from 'vitest'
+import { WingsAdapter, Person, TestConfig, WINGS_CONFIG, ServiceFactory } from '../types.js'
 
 export function testWingsSingleOperationSafety<T extends WingsAdapter<Person>>(
-  service: T,
+  serviceFactory: ServiceFactory<T>,
   idProp: string,
   _config: TestConfig = WINGS_CONFIG
 ) {
   describe('Wings Single Operation Safety', () => {
+    let service: T
     let testUser: Person
     let createdItems: Person[] = []
 
     beforeEach(async () => {
+      service = serviceFactory()
       const result = await service.create({
         name: 'TestUser',
         age: 25
@@ -25,7 +26,7 @@ export function testWingsSingleOperationSafety<T extends WingsAdapter<Person>>(
       for (const item of createdItems) {
         try {
           await service.remove(item[idProp])
-        } catch (error) {
+        } catch (_error) {
           // Ignore cleanup errors
         }
       }
@@ -35,31 +36,25 @@ export function testWingsSingleOperationSafety<T extends WingsAdapter<Person>>(
     it('patch() should throw BadRequest when id is null', async () => {
       try {
         await service.patch(null as any, { name: 'Updated' })
-        assert.fail('Expected BadRequest error when patching with null id')
+        expect.fail('Expected BadRequest error when patching with null id')
       } catch (error: any) {
-        assert.strictEqual(error.name, 'BadRequest')
-        assert.ok(
-          error.message.includes('patch() requires a non-null id'),
-          `Error message should mention patch() requirement. Got: ${error.message}`
-        )
-        assert.ok(
-          error.message.includes('patchMany()'),
-          `Error message should suggest patchMany(). Got: ${error.message}`
-        )
+        expect(error.name).toBe('BadRequest')
+        expect(error.message.includes('patch() requires a non-null id')).toBe(true)
+        expect(error.message.includes('patchMany()')).toBe(true)
       }
     })
 
     it('patch() should throw BadRequest when id is undefined', async () => {
       try {
         await service.patch(undefined as any, { name: 'Updated' })
-        assert.fail('Expected BadRequest error when patching with undefined id')
+        expect.fail('Expected BadRequest error when patching with undefined id')
       } catch (error: any) {
-        assert.strictEqual(error.name, 'BadRequest')
-        assert.ok(
+        expect(error.name).toBe('BadRequest')
+        expect(
           error.message.includes('patch() requires a non-null id'),
           `Error message should mention patch() requirement. Got: ${error.message}`
         )
-        assert.ok(
+        expect(
           error.message.includes('patchMany()'),
           `Error message should suggest patchMany(). Got: ${error.message}`
         )
@@ -69,14 +64,14 @@ export function testWingsSingleOperationSafety<T extends WingsAdapter<Person>>(
     it('remove() should throw BadRequest when id is null', async () => {
       try {
         await service.remove(null as any)
-        assert.fail('Expected BadRequest error when removing with null id')
+        expect.fail('Expected BadRequest error when removing with null id')
       } catch (error: any) {
-        assert.strictEqual(error.name, 'BadRequest')
-        assert.ok(
+        expect(error.name).toBe('BadRequest')
+        expect(
           error.message.includes('remove() requires a non-null id'),
           `Error message should mention remove() requirement. Got: ${error.message}`
         )
-        assert.ok(
+        expect(
           error.message.includes('removeMany()'),
           `Error message should suggest removeMany(). Got: ${error.message}`
         )
@@ -86,14 +81,14 @@ export function testWingsSingleOperationSafety<T extends WingsAdapter<Person>>(
     it('remove() should throw BadRequest when id is undefined', async () => {
       try {
         await service.remove(undefined as any)
-        assert.fail('Expected BadRequest error when removing with undefined id')
+        expect.fail('Expected BadRequest error when removing with undefined id')
       } catch (error: any) {
-        assert.strictEqual(error.name, 'BadRequest')
-        assert.ok(
+        expect(error.name).toBe('BadRequest')
+        expect(
           error.message.includes('remove() requires a non-null id'),
           `Error message should mention remove() requirement. Got: ${error.message}`
         )
-        assert.ok(
+        expect(
           error.message.includes('removeMany()'),
           `Error message should suggest removeMany(). Got: ${error.message}`
         )
@@ -102,16 +97,16 @@ export function testWingsSingleOperationSafety<T extends WingsAdapter<Person>>(
 
     it('patch() should work normally with valid non-null id', async () => {
       const patched = await service.patch(testUser[idProp], { name: 'UpdatedName' })
-      assert.ok(patched, 'Should return patched record')
+      expect(patched).toBeTruthy()
       const patchedItem = Array.isArray(patched) ? patched[0] : patched
-      assert.strictEqual(patchedItem.name, 'UpdatedName')
+      expect(patchedItem.name).toBe('UpdatedName')
     })
 
     it('remove() should work normally with valid non-null id', async () => {
       const removed = await service.remove(testUser[idProp])
-      assert.ok(removed, 'Should return removed record')
+      expect(removed).toBeTruthy()
       const removedItem = Array.isArray(removed) ? removed[0] : removed
-      assert.strictEqual(removedItem.name, 'TestUser')
+      expect(removedItem.name).toBe('TestUser')
       createdItems = [] // Clear since we removed it
     })
 
@@ -123,8 +118,8 @@ export function testWingsSingleOperationSafety<T extends WingsAdapter<Person>>(
         createdItems.push(item)
 
         const patched = await service.patch('', { name: 'PatchedEmpty' })
-        assert.ok(patched, 'Should allow empty string as id')
-      } catch (error) {
+        expect(patched).toBeTruthy()
+      } catch (_error) {
         // Some adapters may not support empty string ids - that's fine
         // This test just ensures we don't confuse empty string with null/undefined
       }
@@ -138,8 +133,8 @@ export function testWingsSingleOperationSafety<T extends WingsAdapter<Person>>(
         createdItems.push(item)
 
         const patched = await service.patch(0, { name: 'PatchedZero' })
-        assert.ok(patched, 'Should allow 0 as id')
-      } catch (error) {
+        expect(patched).toBeTruthy()
+      } catch (_error) {
         // Some adapters may not support 0 ids - that's fine
         // This test just ensures we don't confuse 0 with null/undefined
       }

@@ -1,12 +1,13 @@
 {
   "extends": "../../tsconfig",
   "include": [
-    "src/**/*.ts"
+    "src/**/*.ts",
+    "test/**/*.ts"
   ],
   "compilerOptions": {
     "outDir": "lib",
     "module": "es2022",
-    "moduleResolution": "bundler",
+    "moduleResolution": "node",
     "rewriteRelativeImportExtensions": true,
     "allowImportingTsExtensions": true
   }

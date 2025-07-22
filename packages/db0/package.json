@@ -10,6 +10,10 @@
       "types": "./src/index.ts",
       "default": "./src/index.ts"
     },
+    "./feathers": {
+      "types": "./src/feathers.ts",
+      "default": "./src/feathers.ts"
+    },
     "./cloudflare": {
       "types": "./src/connector-durable-object-sql.ts",
       "default": "./src/connector-durable-object-sql.ts"
@@ -20,7 +24,6 @@
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:node": "node --test --experimental-strip-types test/index.test.ts",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\" --max-warnings 0",
     "lint:fix": "eslint \"src/**/*.ts\" \"test/**/*.ts\" --fix && prettier \"src/**/*.ts\" \"test/**/*.ts\" --write",
     "cf:dev": "wrangler dev --config test/cf-worker/wrangler.jsonc",

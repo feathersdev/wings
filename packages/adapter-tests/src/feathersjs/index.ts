@@ -1,5 +1,5 @@
-import { describe } from 'node:test'
-import { FeathersAdapter, Person, TestConfig, FEATHERS_CONFIG } from '../types.js'
+import { describe } from 'vitest'
+import { FeathersAdapter, Person, TestConfig, FEATHERS_CONFIG, ServiceFactory } from '../types.js'
 
 // Export individual test functions
 export { testFeathersErrorHandling } from './error-handling.js'
@@ -15,14 +15,14 @@ import { testFeathersUpdate } from './update.js'
 
 // Test suite composer for FeathersJS functionality
 export function feathersTests<T extends FeathersAdapter<Person>>(
-  service: T,
+  serviceFactory: ServiceFactory<T>,
   idProp: string,
   config: TestConfig = FEATHERS_CONFIG
 ) {
   describe('FeathersJS Tests', () => {
-    testFeathersErrorHandling(service, idProp, config)
-    testFeathersPagination(service, idProp, config)
-    testFeathersBulkOperations(service, idProp, config)
-    testFeathersUpdate(service, idProp, config)
+    testFeathersErrorHandling(serviceFactory, idProp, config)
+    testFeathersPagination(serviceFactory, idProp, config)
+    testFeathersBulkOperations(serviceFactory, idProp, config)
+    testFeathersUpdate(serviceFactory, idProp, config)
   })
 }

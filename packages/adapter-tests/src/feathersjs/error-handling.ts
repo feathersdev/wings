@@ -1,16 +1,17 @@
-import { describe, it, beforeEach, afterEach } from 'node:test'
-import assert from 'assert'
-import { FeathersAdapter, Person, TestConfig, FEATHERS_CONFIG } from '../types.js'
+import { describe, it, beforeEach, afterEach, expect } from 'vitest'
+import { FeathersAdapter, Person, TestConfig, FEATHERS_CONFIG, ServiceFactory } from '../types.js'
 
 export function testFeathersErrorHandling<T extends FeathersAdapter<Person>>(
-  service: T,
+  serviceFactory: ServiceFactory<T>,
   idProp: string,
   _config: TestConfig = FEATHERS_CONFIG
 ) {
   describe('FeathersJS Error Handling', () => {
+    let service: T
     let testItem: Person
 
     beforeEach(async () => {
+      service = serviceFactory()
       const result = await service.create({ name: 'Test User', age: 25 })
       testItem = Array.isArray(result) ? result[0] : result
     })
@@ -18,72 +19,50 @@ export function testFeathersErrorHandling<T extends FeathersAdapter<Person>>(
     afterEach(async () => {
       try {
         await service.remove(testItem[idProp])
-      } catch (error) {
+      } catch (_error) {
         // Ignore cleanup errors
       }
     })
 
     it('get() should throw NotFound for non-existent item', async () => {
-      await assert.rejects(
-        async () => {
-          await service.get('non-existent-id')
-        },
-        {
-          name: 'NotFound'
-        },
-        'Should throw NotFound error for non-existent item'
-      )
+      await expect(async () => {
+        await service.get('non-existent-id')
+      }).rejects.toMatchObject({ name: 'NotFound' })
     })
 
     it('patch() should throw NotFound for non-existent item', async () => {
-      await assert.rejects(
-        async () => {
-          await service.patch('non-existent-id', { name: 'Updated' })
-        },
-        {
-          name: 'NotFound'
-        },
-        'Should throw NotFound error for non-existent item'
-      )
+      await expect(async () => {
+        await service.patch('non-existent-id', { name: 'Updated' })
+      }).rejects.toMatchObject({ name: 'NotFound' })
     })
 
     it('remove() should throw NotFound for non-existent item', async () => {
-      await assert.rejects(
-        async () => {
-          await service.remove('non-existent-id')
-        },
-        {
-          name: 'NotFound'
-        },
-        'Should throw NotFound error for non-existent item'
-      )
+      await expect(async () => {
+        await service.remove('non-existent-id')
+      }).rejects.toMatchObject({ name: 'NotFound' })
     })
 
     it('get() should return item when found', async () => {
       const result = await service.get(testItem[idProp])
-      assert.ok(result, 'Should return item when found')
-      assert.strictEqual((result as Person).name, 'Test User')
+      expect(result).toBeTruthy()
+      expect((result as Person).name).toBe('Test User')
     })
 
     it('patch() should return updated item when found', async () => {
       const result = await service.patch(testItem[idProp], { name: 'Updated User' })
-      assert.ok(result, 'Should return updated item')
-      assert.strictEqual((result as Person).name, 'Updated User')
+      expect(result).toBeTruthy()
+      expect((result as Person).name).toBe('Updated User')
     })
 
     it('remove() should return removed item when found', async () => {
       const result = await service.remove(testItem[idProp])
-      assert.ok(result, 'Should return removed item')
-      assert.strictEqual((result as Person).name, 'Test User')
+      expect(result).toBeTruthy()
+      expect((result as Person).name).toBe('Test User')
 
       // Verify item was actually removed by checking it throws NotFound
-      await assert.rejects(
-        async () => {
-          await service.get(testItem[idProp])
-        },
-        { name: 'NotFound' },
-        'Item should be removed'
-      )
+      await expect(async () => {
+        await service.get(testItem[idProp])
+      }).rejects.toMatchObject({ name: 'NotFound' })
     })
   })
 }

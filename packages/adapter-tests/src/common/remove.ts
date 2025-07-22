@@ -1,17 +1,18 @@
-import { describe, it, beforeEach, afterEach } from 'node:test'
-import assert from 'assert'
-import { BaseAdapter, Person, TestConfig, COMMON_CONFIG } from '../types.js'
+import { describe, it, beforeEach, afterEach, expect } from 'vitest'
+import { BaseAdapter, Person, TestConfig, COMMON_CONFIG, ServiceFactory } from '../types.js'
 
 export function testRemove<T extends BaseAdapter<Person>>(
-  service: T,
+  serviceFactory: ServiceFactory<T>,
   idProp: string,
   config: TestConfig = COMMON_CONFIG
 ) {
   describe('Remove', () => {
+    let service: T
     let doug: Person
     let createdItems: Person[] = []
 
     beforeEach(async () => {
+      service = serviceFactory()
       const result = await service.create({
         name: 'Doug',
         age: 32
@@ -24,42 +25,44 @@ export function testRemove<T extends BaseAdapter<Person>>(
       for (const item of createdItems) {
         try {
           await service.remove(item[idProp])
-        } catch (error: any) {}
+        } catch (_error: any) {
+          // Ignore cleanup errors
+        }
       }
       createdItems = []
     })
 
     it('should remove a record by id', async () => {
       const removed = await service.remove(doug[idProp])
-      assert.ok(removed, 'Should return removed record')
+      expect(removed).toBeTruthy()
       const removedItem = Array.isArray(removed) ? removed[0] : removed
-      assert.strictEqual(removedItem.name, 'Doug')
+      expect(removedItem?.name).toBe('Doug')
 
       // Verify it's actually removed
-      const result = await service.get(doug[idProp])
       if (config.throwOnNotFound) {
-        // Should be handled by error handling tests
+        await expect(service.get(doug[idProp])).rejects.toThrow()
       } else {
-        assert.strictEqual(result, null, 'Record should be removed')
+        const result = await service.get(doug[idProp])
+        expect(result).toBe(null)
       }
       createdItems = [] // Clear since we removed it
     })
 
     it('should support $select', async () => {
       const removed = await service.remove(doug[idProp], { query: { $select: ['name'] } })
-      assert.ok(removed, 'Should return removed record')
+      expect(removed).toBeTruthy()
       const removedItem = Array.isArray(removed) ? removed[0] : removed
-      assert.strictEqual(removedItem.name, 'Doug')
-      assert.ok(removedItem[idProp], 'Should include id field')
-      assert.strictEqual(removedItem.age, undefined, 'Should not include unselected fields')
+      expect(removedItem?.name).toBe('Doug')
+      expect(removedItem?.[idProp]).toBeTruthy()
+      expect(removedItem?.age).toBeUndefined()
       createdItems = [] // Clear since we removed it
     })
 
     it('should remove with query', async () => {
       const removed = await service.remove(doug[idProp], { query: { name: 'Doug' } })
-      assert.ok(removed, 'Should return removed record when query matches')
+      expect(removed).toBeTruthy()
       const removedItem = Array.isArray(removed) ? removed[0] : removed
-      assert.strictEqual(removedItem.name, 'Doug')
+      expect(removedItem?.name).toBe('Doug')
       createdItems = [] // Clear since we removed it
     })
 
@@ -68,13 +71,11 @@ export function testRemove<T extends BaseAdapter<Person>>(
       const alice = Array.isArray(aliceResult) ? aliceResult[0] : aliceResult
       createdItems.push(alice)
 
-      const removed = await service.remove(doug[idProp], { query: { [idProp]: alice[idProp] } })
-
       if (config.throwOnNotFound) {
-        // Should be handled by error handling tests
-        assert.strictEqual(removed, null, 'Should return null for mismatched query')
+        await expect(service.remove(doug[idProp], { query: { [idProp]: alice[idProp] } })).rejects.toThrow()
       } else {
-        assert.strictEqual(removed, null, 'Should return null for mismatched query')
+        const removed = await service.remove(doug[idProp], { query: { [idProp]: alice[idProp] } })
+        expect(removed).toBe(null)
       }
     })
   })

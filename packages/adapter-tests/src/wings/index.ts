@@ -1,5 +1,5 @@
-import { describe } from 'node:test'
-import { WingsAdapter, Person, TestConfig, WINGS_CONFIG } from '../types.js'
+import { describe } from 'vitest'
+import { WingsAdapter, Person, TestConfig, WINGS_CONFIG, ServiceFactory } from '../types.js'
 
 // Export individual test functions
 export { testWingsPagination } from './pagination.js'
@@ -17,15 +17,15 @@ import { testWingsSingleOperationSafety } from './single-operation-safety.js'
 
 // Test suite composer for Wings functionality
 export function wingsTests<T extends WingsAdapter<Person>>(
-  service: T,
+  serviceFactory: ServiceFactory<T>,
   idProp: string,
   config: TestConfig = WINGS_CONFIG
 ) {
   describe('Wings Tests', () => {
-    testWingsPagination(service, idProp, config)
-    testWingsNullReturns(service, idProp, config)
-    testWingsBulkOperations(service, idProp, config)
-    testWingsQueryOperators(service, idProp, config)
-    testWingsSingleOperationSafety(service, idProp, config)
+    testWingsPagination(serviceFactory, idProp, config)
+    testWingsNullReturns(serviceFactory, idProp, config)
+    testWingsBulkOperations(serviceFactory, idProp, config)
+    testWingsQueryOperators(serviceFactory, idProp, config)
+    testWingsSingleOperationSafety(serviceFactory, idProp, config)
   })
 }

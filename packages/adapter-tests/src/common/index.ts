@@ -1,5 +1,5 @@
-import { describe } from 'node:test'
-import { BaseAdapter, Person, TestConfig, COMMON_CONFIG } from '../types.js'
+import { describe } from 'vitest'
+import { BaseAdapter, Person, TestConfig, COMMON_CONFIG, ServiceFactory } from '../types.js'
 
 // Export individual test functions
 export { testBasicProperties } from './basic-properties.js'
@@ -23,18 +23,18 @@ import { testBasicQueryOperators } from './basic-query-operators.js'
 
 // Test suite composer for common functionality
 export function commonTests<T extends BaseAdapter<Person>>(
-  service: T,
+  serviceFactory: ServiceFactory<T>,
   idProp: string,
   config: TestConfig = COMMON_CONFIG
 ) {
   describe('Common Tests', () => {
-    testBasicProperties(service, idProp)
-    testCreate(service, idProp, config)
-    testGet(service, idProp, config)
-    testBasicFind(service, idProp, config)
-    testPatch(service, idProp, config)
-    testUpdate(service, idProp, config)
-    testRemove(service, idProp, config)
-    testBasicQueryOperators(service, idProp, config)
+    testBasicProperties(serviceFactory, idProp)
+    testCreate(serviceFactory, idProp, config)
+    testGet(serviceFactory, idProp, config)
+    testBasicFind(serviceFactory, idProp, config)
+    testPatch(serviceFactory, idProp, config)
+    testUpdate(serviceFactory, idProp, config)
+    testRemove(serviceFactory, idProp, config)
+    testBasicQueryOperators(serviceFactory, idProp, config)
   })
 }

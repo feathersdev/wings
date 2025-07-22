@@ -1,17 +1,18 @@
-import { describe, it, beforeEach, afterEach } from 'node:test'
-import assert from 'assert'
-import { BaseAdapter, Person, TestConfig, COMMON_CONFIG } from '../types.js'
+import { describe, it, beforeEach, afterEach, expect } from 'vitest'
+import { BaseAdapter, Person, TestConfig, COMMON_CONFIG, ServiceFactory } from '../types.js'
 
 export function testPatch<T extends BaseAdapter<Person>>(
-  service: T,
+  serviceFactory: ServiceFactory<T>,
   idProp: string,
   config: TestConfig = COMMON_CONFIG
 ) {
   describe('Patch', () => {
+    let service: T
     let doug: Person
     let createdItems: Person[] = []
 
     beforeEach(async () => {
+      service = serviceFactory()
       const result = await service.create({
         name: 'Doug',
         age: 32
@@ -24,42 +25,43 @@ export function testPatch<T extends BaseAdapter<Person>>(
       for (const item of createdItems) {
         try {
           await service.remove(item[idProp])
-        } catch (error: any) {}
+        } catch (_error: any) {
+          // Ignore cleanup errors
+        }
       }
       createdItems = []
     })
 
     it('should patch a record by id', async () => {
       const patched = await service.patch(doug[idProp], { name: 'Dougie' })
-      assert.ok(patched, 'Should return patched record')
+      expect(patched).toBeTruthy()
       const patchedItem = Array.isArray(patched) ? patched[0] : patched
-      assert.strictEqual(patchedItem.name, 'Dougie')
-      assert.strictEqual(patchedItem.age, 32, 'Should keep existing fields')
+      expect(patchedItem?.name).toBe('Dougie')
+      expect(patchedItem?.age).toBe(32)
     })
 
     it('should support $select', async () => {
       const patched = await service.patch(doug[idProp], { name: 'Dougie' }, { query: { $select: ['name'] } })
-      assert.ok(patched, 'Should return patched record')
+      expect(patched).toBeTruthy()
       const patchedItem = Array.isArray(patched) ? patched[0] : patched
-      assert.strictEqual(patchedItem.name, 'Dougie')
-      assert.ok(patchedItem[idProp], 'Should include id field')
-      assert.strictEqual(patchedItem.age, undefined, 'Should not include unselected fields')
+      expect(patchedItem?.name).toBe('Dougie')
+      expect(patchedItem?.[idProp]).toBeTruthy()
+      expect(patchedItem?.age).toBeUndefined()
     })
 
     it('should patch with query', async () => {
       const patched = await service.patch(doug[idProp], { name: 'Dougie' }, { query: { name: 'Doug' } })
-      assert.ok(patched, 'Should return patched record when query matches')
+      expect(patched).toBeTruthy()
       const patchedItem = Array.isArray(patched) ? patched[0] : patched
-      assert.strictEqual(patchedItem.name, 'Dougie')
+      expect(patchedItem?.name).toBe('Dougie')
     })
 
     it('should handle not found appropriately', async () => {
-      const result = await service.patch('non-existent-id', { name: 'Updated' })
-
       if (config.throwOnNotFound) {
-        // Should be handled by error handling tests
+        await expect(service.patch('non-existent-id', { name: 'Updated' })).rejects.toThrow()
       } else {
-        assert.strictEqual(result, null, 'Should return null when not found')
+        const result = await service.patch('non-existent-id', { name: 'Updated' })
+        expect(result).toBe(null)
       }
     })
 
@@ -68,17 +70,17 @@ export function testPatch<T extends BaseAdapter<Person>>(
       const alice = Array.isArray(aliceResult) ? aliceResult[0] : aliceResult
       createdItems.push(alice)
 
-      const patched = await service.patch(
-        doug[idProp],
-        { name: 'Updated' },
-        { query: { [idProp]: alice[idProp] } }
-      )
-
       if (config.throwOnNotFound) {
-        // Should be handled by error handling tests
-        assert.strictEqual(patched, null, 'Should return null for mismatched query')
+        await expect(
+          service.patch(doug[idProp], { name: 'Updated' }, { query: { [idProp]: alice[idProp] } })
+        ).rejects.toThrow()
       } else {
-        assert.strictEqual(patched, null, 'Should return null for mismatched query')
+        const patched = await service.patch(
+          doug[idProp],
+          { name: 'Updated' },
+          { query: { [idProp]: alice[idProp] } }
+        )
+        expect(patched).toBe(null)
       }
     })
   })

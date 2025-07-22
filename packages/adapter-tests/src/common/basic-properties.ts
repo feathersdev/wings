@@ -1,15 +1,23 @@
-import { describe, it } from 'node:test'
-import assert from 'assert'
-import { BaseAdapter, Person } from '../types.js'
+import { describe, it, beforeEach, expect } from 'vitest'
+import { BaseAdapter, Person, ServiceFactory } from '../types.js'
 
-export function testBasicProperties<T extends BaseAdapter<Person>>(service: T, idProp: string) {
+export function testBasicProperties<T extends BaseAdapter<Person>>(
+  serviceFactory: ServiceFactory<T>,
+  idProp: string
+) {
   describe('Basic Properties', () => {
+    let service: T
+
+    beforeEach(() => {
+      service = serviceFactory()
+    })
+
     it('should have id property', () => {
-      assert.strictEqual((service as any).id, idProp, 'id property is set to expected name')
+      expect((service as any).id).toBe(idProp)
     })
 
     it('should have options property', () => {
-      assert.ok((service as any).options, 'Options are available in service.options')
+      expect((service as any).options).toBeDefined()
     })
   })
 }

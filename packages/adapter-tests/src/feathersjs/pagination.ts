@@ -1,16 +1,17 @@
-import { describe, it, beforeEach, afterEach } from 'node:test'
-import assert from 'assert'
-import { FeathersAdapter, Person, TestConfig, FEATHERS_CONFIG } from '../types.js'
+import { describe, it, beforeEach, afterEach, expect } from 'vitest'
+import { FeathersAdapter, Person, TestConfig, FEATHERS_CONFIG, ServiceFactory } from '../types.js'
 
 export function testFeathersPagination<T extends FeathersAdapter<Person>>(
-  service: T,
+  serviceFactory: ServiceFactory<T>,
   idProp: string,
   _config: TestConfig = FEATHERS_CONFIG
 ) {
   describe('FeathersJS Pagination', () => {
+    let service: T
     let testData: Person[] = []
 
     beforeEach(async () => {
+      service = serviceFactory()
       const data = [
         { name: 'Alice', age: 25 },
         { name: 'Bob', age: 30 },
@@ -24,7 +25,7 @@ export function testFeathersPagination<T extends FeathersAdapter<Person>>(
       for (const item of testData) {
         try {
           await service.remove(item[idProp])
-        } catch (error) {
+        } catch (_error) {
           // Ignore cleanup errors
         }
       }
@@ -34,32 +35,32 @@ export function testFeathersPagination<T extends FeathersAdapter<Person>>(
     it('should return Paginated object by default', async () => {
       const result = await service.find()
 
-      assert.ok(result && typeof result === 'object', 'Should return object')
-      assert.ok(!Array.isArray(result), 'Should not be an array')
-      assert.ok(typeof result.total === 'number', 'Should have total count')
-      assert.ok(typeof result.limit === 'number', 'Should have limit')
-      assert.ok(typeof result.skip === 'number', 'Should have skip')
-      assert.ok(Array.isArray(result.data), 'Should have data array')
-      assert.ok(result.data.length >= 3, 'Should have test data')
+      expect(result && typeof result === 'object').toBe(true)
+      expect(!Array.isArray(result)).toBe(true)
+      expect(typeof result.total === 'number').toBe(true)
+      expect(typeof result.limit === 'number').toBe(true)
+      expect(typeof result.skip === 'number').toBe(true)
+      expect(Array.isArray(result.data)).toBe(true)
+      expect(result.data.length >= 3).toBe(true)
     })
 
     it('should return array when paginate: false', async () => {
       const result = await service.find({ paginate: false })
 
-      assert.ok(Array.isArray(result), 'Should return array when paginate: false')
-      assert.ok(result.length >= 3, 'Should have test data')
+      expect(Array.isArray(result)).toBe(true)
+      expect(result.length >= 3).toBe(true)
     })
 
     it('should return Paginated object when paginate: true', async () => {
       const result = await service.find({ paginate: true, query: { $sort: { name: 1 } } })
 
-      assert.ok(result && typeof result === 'object', 'Should return object')
-      assert.ok(!Array.isArray(result), 'Should not be an array')
-      assert.ok(typeof result.total === 'number', 'Should have total count')
-      assert.ok(typeof result.limit === 'number', 'Should have limit')
-      assert.ok(typeof result.skip === 'number', 'Should have skip')
-      assert.ok(Array.isArray(result.data), 'Should have data array')
-      assert.ok(result.data.length >= 3, 'Should have test data')
+      expect(result && typeof result === 'object').toBe(true)
+      expect(!Array.isArray(result)).toBe(true)
+      expect(typeof result.total === 'number').toBe(true)
+      expect(typeof result.limit === 'number').toBe(true)
+      expect(typeof result.skip === 'number').toBe(true)
+      expect(Array.isArray(result.data)).toBe(true)
+      expect(result.data.length >= 3).toBe(true)
     })
 
     it('should paginate with $limit and $skip', async () => {
@@ -67,11 +68,11 @@ export function testFeathersPagination<T extends FeathersAdapter<Person>>(
         query: { $limit: 2, $skip: 1, $sort: { name: 1 } }
       })
 
-      assert.strictEqual(result.total, 3, 'Total should be 3')
-      assert.strictEqual(result.limit, 2, 'Limit should be 2')
-      assert.strictEqual(result.skip, 1, 'Skip should be 1')
-      assert.strictEqual(result.data.length, 2, 'Should return 2 items')
-      assert.strictEqual(result.data[0].name, 'Bob', 'Should skip Alice and start with Bob')
+      expect(result.total).toBe(3)
+      expect(result.limit).toBe(2)
+      expect(result.skip).toBe(1)
+      expect(result.data.length).toBe(2)
+      expect(result.data[0].name).toBe('Bob')
     })
   })
 }

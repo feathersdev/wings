@@ -1,9 +1,9 @@
-import { describe, before, after } from 'node:test'
+import { describe, beforeAll, afterAll } from 'vitest'
 import { createDatabase } from 'db0'
 import sqlite from 'db0/connectors/node-sqlite'
-import { Db0Service } from '../src/service.ts'
-import { fullWingsTests } from '@wingshq/adapter-tests'
-import type { DbRecord } from '../src/service.ts'
+import { Db0Service } from '../src/service.js'
+import { fullWingsTests, WINGS_CONFIG } from '@wingshq/adapter-tests'
+import type { DbRecord } from '../src/service.js'
 import type { Person } from '@wingshq/adapter-tests'
 
 interface User extends DbRecord, Person {
@@ -22,11 +22,14 @@ const clean = async () => {
 }
 
 describe('Db0 Adapter - Comprehensive Test Suite', () => {
-  before(clean)
-  after(async () => {
+  beforeAll(clean)
+  afterAll(async () => {
     await db.sql`DROP TABLE IF EXISTS users`
   })
 
+  // Create service factory function
+  const createService = () => service
+
   // Run the full Wings test suite (common + Wings-specific tests)
-  fullWingsTests(service, 'id')
+  fullWingsTests(createService, 'id', WINGS_CONFIG)
 })

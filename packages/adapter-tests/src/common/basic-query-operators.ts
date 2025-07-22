@@ -1,16 +1,17 @@
-import { describe, it, beforeEach, afterEach } from 'node:test'
-import assert from 'assert'
-import { BaseAdapter, Person, TestConfig, COMMON_CONFIG } from '../types.js'
+import { describe, it, beforeEach, afterEach, expect } from 'vitest'
+import { BaseAdapter, Person, TestConfig, COMMON_CONFIG, ServiceFactory } from '../types.js'
 
 export function testBasicQueryOperators<T extends BaseAdapter<Person>>(
-  service: T,
+  serviceFactory: ServiceFactory<T>,
   idProp: string,
   config: TestConfig = COMMON_CONFIG
 ) {
   describe('Basic Query Operators', () => {
+    let service: T
     let testData: Person[] = []
 
     beforeEach(async () => {
+      service = serviceFactory()
       const data = [
         { name: 'Alice', age: 25 },
         { name: 'Bob', age: 30 },
@@ -25,7 +26,7 @@ export function testBasicQueryOperators<T extends BaseAdapter<Person>>(
       for (const item of testData) {
         try {
           await service.remove(item[idProp])
-        } catch (error) {
+        } catch (_error) {
           // Ignore cleanup errors
         }
       }
@@ -36,61 +37,61 @@ export function testBasicQueryOperators<T extends BaseAdapter<Person>>(
       const result = await service.find({ query: { name: { $in: ['Alice', 'Bob'] } } })
       const data = config.alwaysPaginate ? (result as any).data : result
 
-      assert.ok(Array.isArray(data))
-      assert.strictEqual(data.length, 2)
-      const names = data.map((item) => item.name).sort()
-      assert.deepStrictEqual(names, ['Alice', 'Bob'])
+      expect(Array.isArray(data)).toBe(true)
+      expect(data.length).toBe(2)
+      const names = data.map((item: any) => item.name).sort()
+      expect(names).toEqual(['Alice', 'Bob'])
     })
 
     it('should support $nin', async () => {
       const result = await service.find({ query: { name: { $nin: ['Alice', 'Bob'] } } })
       const data = config.alwaysPaginate ? (result as any).data : result
 
-      assert.ok(Array.isArray(data))
-      assert.strictEqual(data.length, 2)
-      const names = data.map((item) => item.name).sort()
-      assert.deepStrictEqual(names, ['Charlie', 'David'])
+      expect(Array.isArray(data)).toBe(true)
+      expect(data.length).toBe(2)
+      const names = data.map((item: any) => item.name).sort()
+      expect(names).toEqual(['Charlie', 'David'])
     })
 
     it('should support $lt', async () => {
       const result = await service.find({ query: { age: { $lt: 30 } } })
       const data = config.alwaysPaginate ? (result as any).data : result
 
-      assert.ok(Array.isArray(data))
-      assert.strictEqual(data.length, 2) // Alice and David (age 25)
+      expect(Array.isArray(data)).toBe(true)
+      expect(data.length).toBe(2) // Alice and David (age 25)
     })
 
     it('should support $lte', async () => {
       const result = await service.find({ query: { age: { $lte: 30 } } })
       const data = config.alwaysPaginate ? (result as any).data : result
 
-      assert.ok(Array.isArray(data))
-      assert.strictEqual(data.length, 3) // Alice, Bob, and David
+      expect(Array.isArray(data)).toBe(true)
+      expect(data.length).toBe(3) // Alice, Bob, and David
     })
 
     it('should support $gt', async () => {
       const result = await service.find({ query: { age: { $gt: 30 } } })
       const data = config.alwaysPaginate ? (result as any).data : result
 
-      assert.ok(Array.isArray(data))
-      assert.strictEqual(data.length, 1) // Charlie (age 35)
-      assert.strictEqual(data[0].name, 'Charlie')
+      expect(Array.isArray(data)).toBe(true)
+      expect(data.length).toBe(1) // Charlie (age 35)
+      expect(data[0].name).toBe('Charlie')
     })
 
     it('should support $gte', async () => {
       const result = await service.find({ query: { age: { $gte: 30 } } })
       const data = config.alwaysPaginate ? (result as any).data : result
 
-      assert.ok(Array.isArray(data))
-      assert.strictEqual(data.length, 2) // Bob and Charlie
+      expect(Array.isArray(data)).toBe(true)
+      expect(data.length).toBe(2) // Bob and Charlie
     })
 
     it('should support $ne', async () => {
       const result = await service.find({ query: { age: { $ne: 25 } } })
       const data = config.alwaysPaginate ? (result as any).data : result
 
-      assert.ok(Array.isArray(data))
-      assert.strictEqual(data.length, 2) // Bob and Charlie
+      expect(Array.isArray(data)).toBe(true)
+      expect(data.length).toBe(2) // Bob and Charlie
     })
 
     it('should support $or', async () => {
@@ -101,8 +102,8 @@ export function testBasicQueryOperators<T extends BaseAdapter<Person>>(
       })
       const data = config.alwaysPaginate ? (result as any).data : result
 
-      assert.ok(Array.isArray(data))
-      assert.strictEqual(data.length, 2) // Alice and Charlie
+      expect(Array.isArray(data)).toBe(true)
+      expect(data.length).toBe(2) // Alice and Charlie
     })
 
     it('should support $and', async () => {
@@ -113,9 +114,9 @@ export function testBasicQueryOperators<T extends BaseAdapter<Person>>(
       })
       const data = config.alwaysPaginate ? (result as any).data : result
 
-      assert.ok(Array.isArray(data))
-      assert.strictEqual(data.length, 1)
-      assert.strictEqual(data[0].name, 'Alice')
+      expect(Array.isArray(data)).toBe(true)
+      expect(data.length).toBe(1)
+      expect(data[0].name).toBe('Alice')
     })
   })
 }

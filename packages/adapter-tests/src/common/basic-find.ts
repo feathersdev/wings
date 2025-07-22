@@ -1,16 +1,17 @@
-import { describe, it, beforeEach, afterEach } from 'node:test'
-import assert from 'assert'
-import { BaseAdapter, Person, TestConfig, COMMON_CONFIG } from '../types.js'
+import { describe, it, beforeEach, afterEach, expect } from 'vitest'
+import { BaseAdapter, Person, TestConfig, COMMON_CONFIG, ServiceFactory } from '../types.js'
 
 export function testBasicFind<T extends BaseAdapter<Person>>(
-  service: T,
+  serviceFactory: ServiceFactory<T>,
   idProp: string,
   config: TestConfig = COMMON_CONFIG
 ) {
   describe('Basic Find', () => {
+    let service: T
     let testData: Person[] = []
 
     beforeEach(async () => {
+      service = serviceFactory()
       // Create test data
       const data = [
         { name: 'Alice', age: 25 },
@@ -26,7 +27,7 @@ export function testBasicFind<T extends BaseAdapter<Person>>(
       for (const item of testData) {
         try {
           await service.remove(item[idProp])
-        } catch (error) {
+        } catch (_error) {
           // Ignore cleanup errors
         }
       }
@@ -37,67 +38,67 @@ export function testBasicFind<T extends BaseAdapter<Person>>(
       const result = await service.find()
       const data = config.alwaysPaginate ? (result as any).data : result
 
-      assert.ok(Array.isArray(data), 'Should return array or paginated data')
-      assert.ok(data.length >= 3, 'Should return at least 3 items')
+      expect(Array.isArray(data)).toBe(true)
+      expect(data.length).toBeGreaterThanOrEqual(3)
     })
 
     it('should find items with query', async () => {
       const result = await service.find({ query: { name: 'Alice' } })
       const data = config.alwaysPaginate ? (result as any).data : result
 
-      assert.ok(Array.isArray(data), 'Should return array or paginated data')
-      assert.strictEqual(data.length, 1, 'Should return 1 item')
-      assert.strictEqual(data[0].name, 'Alice')
+      expect(Array.isArray(data)).toBe(true)
+      expect(data.length).toBe(1)
+      expect(data[0].name).toBe('Alice')
     })
 
     it('should support $limit', async () => {
       const result = await service.find({ query: { $limit: 2 } })
       const data = config.alwaysPaginate ? (result as any).data : result
 
-      assert.ok(Array.isArray(data), 'Should return array or paginated data')
-      assert.strictEqual(data.length, 2, 'Should return 2 items')
+      expect(Array.isArray(data)).toBe(true)
+      expect(data.length).toBe(2)
     })
 
     it('should support $skip', async () => {
       const result = await service.find({ query: { $skip: 1, $sort: { name: 1 } } })
       const data = config.alwaysPaginate ? (result as any).data : result
 
-      assert.ok(Array.isArray(data), 'Should return array or paginated data')
-      assert.ok(data.length >= 2, 'Should return at least 2 items (skipping 1)')
-      assert.notStrictEqual(data[0].name, 'Alice', 'Should skip first item when sorted by name')
+      expect(Array.isArray(data)).toBe(true)
+      expect(data.length).toBeGreaterThanOrEqual(2)
+      expect(data[0].name).not.toBe('Alice')
     })
 
     it('should support $sort ascending', async () => {
       const result = await service.find({ query: { $sort: { name: 1 } } })
       const data = config.alwaysPaginate ? (result as any).data : result
 
-      assert.ok(Array.isArray(data), 'Should return array or paginated data')
-      assert.ok(data.length >= 3, 'Should return at least 3 items')
-      assert.strictEqual(data[0].name, 'Alice')
-      assert.strictEqual(data[1].name, 'Bob')
-      assert.strictEqual(data[2].name, 'Charlie')
+      expect(Array.isArray(data)).toBe(true)
+      expect(data.length).toBeGreaterThanOrEqual(3)
+      expect(data[0].name).toBe('Alice')
+      expect(data[1].name).toBe('Bob')
+      expect(data[2].name).toBe('Charlie')
     })
 
     it('should support $sort descending', async () => {
       const result = await service.find({ query: { $sort: { name: -1 } } })
       const data = config.alwaysPaginate ? (result as any).data : result
 
-      assert.ok(Array.isArray(data), 'Should return array or paginated data')
-      assert.ok(data.length >= 3, 'Should return at least 3 items')
-      assert.strictEqual(data[0].name, 'Charlie')
-      assert.strictEqual(data[1].name, 'Bob')
-      assert.strictEqual(data[2].name, 'Alice')
+      expect(Array.isArray(data)).toBe(true)
+      expect(data.length).toBeGreaterThanOrEqual(3)
+      expect(data[0].name).toBe('Charlie')
+      expect(data[1].name).toBe('Bob')
+      expect(data[2].name).toBe('Alice')
     })
 
     it('should support $select', async () => {
       const result = await service.find({ query: { name: 'Alice', $select: ['name'] } })
       const data = config.alwaysPaginate ? (result as any).data : result
 
-      assert.ok(Array.isArray(data), 'Should return array or paginated data')
-      assert.strictEqual(data.length, 1, 'Should return 1 item')
-      assert.strictEqual(data[0].name, 'Alice')
-      assert.ok(data[0][idProp], 'Should always include id field')
-      assert.strictEqual(data[0].age, undefined, 'Should not include unselected fields')
+      expect(Array.isArray(data)).toBe(true)
+      expect(data.length).toBe(1)
+      expect(data[0].name).toBe('Alice')
+      expect(data[0][idProp]).toBeDefined()
+      expect(data[0].age).toBeUndefined()
     })
   })
 }

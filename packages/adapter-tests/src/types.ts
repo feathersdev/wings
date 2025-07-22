@@ -5,6 +5,9 @@ export type Person = {
   created?: boolean
 }
 
+// Factory function type for creating service instances
+export type ServiceFactory<T> = () => T
+
 // Base interface that both Wings and FeathersJS adapters should support
 export interface BaseAdapter<T = any> {
   find(params?: any): Promise<T[] | any>
