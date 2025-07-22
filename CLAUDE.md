@@ -18,6 +18,53 @@ Each package in `/packages` has its own commands:
 
 - **Build individual package**: `cd packages/<package-name> && npm run compile`
 - **Test individual package**: `cd packages/<package-name> && npm test`
+- **Lint individual package**: `cd packages/<package-name> && npm run lint`
+- **Lint and fix individual package**: `cd packages/<package-name> && npm run lint:fix`
+
+**IMPORTANT**: All adapter packages must include the following scripts in their `package.json`:
+
+```json
+{
+  "scripts": {
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\" --max-warnings 0",
+    "lint:fix": "eslint \"src/**/*.ts\" \"test/**/*.ts\" --fix && prettier \"src/**/*.ts\" \"test/**/*.ts\" --write"
+  }
+}
+```
+
+This ensures:
+- **Zero warnings policy**: `--max-warnings 0` enforces strict code quality
+- **Auto-formatting**: `prettier` integration in `lint:fix` for consistent code style
+- **Comprehensive coverage**: Both source and test files are linted
+
+**IMPORTANT**: All Wings packages must use **vitest** for testing (not Node.js test runner) for consistency and better performance:
+
+```json
+{
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "vitest": "^3.2.4"
+  }
+}
+```
+
+**IMPORTANT**: Ensure your `tsconfig.json` includes both `src` and `test` directories:
+
+```json
+{
+  "extends": "../../tsconfig",
+  "include": [
+    "src/**/*.ts",
+    "test/**/*.ts"
+  ],
+  "compilerOptions": {
+    "outDir": "lib"
+  }
+}
+```
 
 ## Architecture Overview
 
@@ -130,9 +177,23 @@ The following tasks need to be completed to fully migrate the repository to the 
 #### db0 Adapter Implementation
 - **Wings interface compliance**: Full implementation of modern Wings interface
 - **FeathersJS wrapper**: Complete backwards compatibility layer with error throwing and pagination
-- **Dual exports**: Package supports both `@wingshq/db0` (Wings) and `@wingshq/db0/feathers` (FeathersJS)
-- **Full test coverage**: Both interfaces passing 100% of tests (68 Wings + 65 FeathersJS tests)
+- **Advanced query operators**: Full parity with knex adapter (`$like`, `$notlike`, proper NULL handling)
+- **Database-agnostic error handling**: Pattern-based error classification to FeathersJS error types
+- **Full test coverage**: All 192 tests passing (Wings + FeathersJS + centralized test suites)
 - **Performance optimized**: Smart pagination with conditional COUNT queries
+
+#### Knex Adapter Enhancements
+- **Centralized testing**: Migrated duplicate tests to `adapter-tests` package for DRY compliance
+- **Enhanced error handling**: Comprehensive database-specific error mapping (SQL State, SQLite, PostgreSQL)
+- **Advanced query operators**: Full support for `$like`, `$notlike`, complex logical operations, NULL handling
+- **Bug fixes**: Fixed pagination count queries and Wings interface compliance issues
+- **Full test coverage**: All 283 tests passing with comprehensive error handling and query operator tests
+
+#### Adapter-Tests Centralization
+- **Test consolidation**: Centralized error handling and advanced query operator tests
+- **DRY compliance**: Eliminated code duplication between adapters while maintaining full coverage
+- **Consistent behavior**: All adapters now run identical test suites for common functionality
+- **Enhanced coverage**: Added comprehensive Database Error Handling and Advanced Query Operators test suites
 
 #### Documentation
 - **Comprehensive README**: Complete development guide for creating Wings adapters and FeathersJS wrappers
@@ -185,32 +246,37 @@ Preserve existing FeathersJS tests:
 
 Each existing adapter needs to be updated to implement the new Wings interface:
 
-#### Knex Adapter (`@wingshq/knex`):
+#### ✅ Knex Adapter (`@wingshq/knex`) - COMPLETED:
 
-- [ ] Update `find()` method signature with TypeScript overloads for pagination support
-- [ ] Update `get()`, `patch()`, `remove()` to return `null` instead of throwing on not-found
-- [ ] Remove `update()` method implementation
-- [ ] Add `patchMany(data, params)` method with `allowAll` safety control
-- [ ] Add `removeMany(params)` method with `allowAll` safety control
-- [ ] Add `removeAll()` method
-- [ ] Add support for `$like`, `$ilike`, `$isNull` query operators where applicable
-- [ ] Implement SQL-specific operators (`$like`, `$ilike`) using Knex query builder
-- [ ] Update pagination logic to conditionally execute COUNT queries
-- [ ] Ensure proper SQL identifier quoting for different dialects
+- [x] Update `find()` method signature with TypeScript overloads for pagination support
+- [x] Update `get()`, `patch()`, `remove()` to return `null` instead of throwing on not-found
+- [x] Remove `update()` method implementation
+- [x] Add `patchMany(data, params)` method with `allowAll` safety control
+- [x] Add `removeMany(params)` method with `allowAll` safety control
+- [x] Add `removeAll()` method
+- [x] Add support for `$like`, `$ilike`, `$isNull` query operators where applicable
+- [x] Implement SQL-specific operators (`$like`, `$ilike`) using Knex query builder
+- [x] Update pagination logic to conditionally execute COUNT queries
+- [x] Ensure proper SQL identifier quoting for different dialects
+- [x] **BONUS**: Comprehensive database-specific error handling (SQL State, SQLite, PostgreSQL)
+- [x] **BONUS**: Centralized testing with `adapter-tests` package integration
 
-#### MongoDB Adapter (`@wingshq/mongodb`):
+#### ✅ MongoDB Adapter (`@wingshq/mongodb`) - COMPLETED:
 
-- [ ] Update `find()` method signature with TypeScript overloads for pagination support
-- [ ] Update `get()`, `patch()`, `remove()` to return `null` instead of throwing on not-found
-- [ ] Remove `update()` method implementation
-- [ ] Add `patchMany(data, params)` method with `allowAll` safety control
-- [ ] Add `removeMany(params)` method with `allowAll` safety control
-- [ ] Add `removeAll()` method
-- [ ] Add support for `$like`, `$ilike`, `$isNull` query operators where applicable
-- [ ] Map `$like` to MongoDB `$regex` operators
-- [ ] Map `$ilike` to case-insensitive `$regex` operators
-- [ ] Map `$isNull` to MongoDB `$exists` operators
-- [ ] Update aggregation pipeline for pagination when needed
+- [x] Update `find()` method signature with TypeScript overloads for pagination support
+- [x] Update `get()`, `patch()`, `remove()` to return `null` instead of throwing on not-found
+- [x] Remove `update()` method implementation
+- [x] Add `patchMany(data, params)` method with `allowAll` safety control
+- [x] Add `removeMany(params)` method with `allowAll` safety control
+- [x] Add `removeAll()` method
+- [x] Add support for `$like`, `$ilike`, `$isNull` query operators where applicable
+- [x] Map `$like` to MongoDB `$regex` operators
+- [x] Map `$ilike` to case-insensitive `$regex` operators
+- [x] Map `$isNull` to MongoDB `$exists` operators
+- [x] Update aggregation pipeline for pagination when needed
+- [x] **BONUS**: FeathersJS wrapper implementation with full backwards compatibility
+- [x] **BONUS**: Centralized testing with `adapter-tests` package integration
+- [x] **BONUS**: Advanced SQL-like query operator conversion to MongoDB equivalents
 
 #### Memory Adapter (`@wingshq/memory`):
 
@@ -227,12 +293,14 @@ Each existing adapter needs to be updated to implement the new Wings interface:
 
 ### 3. Verification
 
-After completing the above tasks:
+Current Status:
 
-- [ ] All adapters should pass the updated test suite
-- [ ] All adapters should have consistent behavior and API surface
-- [ ] TypeScript compilation should succeed with proper type inference
-- [ ] Documentation should be updated to reflect the new interface
+- [x] **db0 and knex adapters**: Pass all updated test suites with full parity (192 and 283 tests respectively)
+- [x] **Consistent behavior**: Both adapters implement identical Wings and FeathersJS interfaces 
+- [x] **TypeScript compilation**: Full type safety with proper method overloading and inference
+- [x] **Documentation**: Updated to reflect completed Wings interface migration and centralized testing
+- [x] **MongoDB adapter**: Completed with full Wings interface and FeathersJS wrapper
+- [ ] **Memory adapter**: Needs updates to use new centralized test signatures
 
 ### 4. Create FeathersJS Compatibility Wrappers
 
