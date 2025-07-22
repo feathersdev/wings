@@ -26,10 +26,10 @@ type Todo = {
 class TodoAdapter extends KnexAdapter<Todo> {
   createQuery(params: any) {
     const query = super.createQuery(params)
-    
+
     // Apply join after base query is built
     query.join('people as person', 'todos.personId', 'person.id')
-    
+
     // Add the personName to the existing select, don't clear it
     query.select('person.name as personName')
 
@@ -90,7 +90,6 @@ describe('Knex Adapter Legacy Tests', () => {
     expect(people).toBeTruthy()
   })
 
-
   describe('adapter specifics', () => {
     let daves: Person[]
     let people: KnexAdapter<Person>
@@ -122,7 +121,6 @@ describe('Knex Adapter Legacy Tests', () => {
         console.error('Error in test cleanup:', error)
       }
     })
-
 
     it('attaches the SQL error', async () => {
       try {

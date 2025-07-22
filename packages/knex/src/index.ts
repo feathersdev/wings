@@ -257,7 +257,7 @@ export class KnexAdapter<T extends Record<string, any> = any>
     if (updateResult === 0) {
       return null
     }
-    
+
     // When getting the updated record, preserve $select but remove other query constraints
     const selectOnlyParams = params?.query?.$select ? { query: { $select: params.query.$select } } : undefined
     return this.get(id, selectOnlyParams)

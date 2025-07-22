@@ -7,10 +7,10 @@ export function extractCountValue(countResult: any[]): number {
   }
 
   const row = countResult[0]
-  
+
   // Try different possible column names that Knex count() might return
   let countValue = row.total || row['count(*)'] || row['COUNT(*)'] || row.count
-  
+
   // If we still don't have a value, check all keys in the row
   if (countValue === undefined) {
     const keys = Object.keys(row)
@@ -22,11 +22,11 @@ export function extractCountValue(countResult: any[]): number {
       }
     }
   }
-  
+
   // If it's an object (like SQLite might return), try to extract the first numeric value
   if (countValue && typeof countValue === 'object') {
     const values = Object.values(countValue)
-    countValue = values.find(v => typeof v === 'number' || typeof v === 'string')
+    countValue = values.find((v) => typeof v === 'number' || typeof v === 'string')
   }
 
   if (typeof countValue === 'number') {

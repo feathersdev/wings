@@ -175,9 +175,7 @@ export function testErrorHandling<T extends BaseAdapter<Person>>(
 
     describe('Generic Error Handling', () => {
       it('should convert non-FeathersError to GeneralError', () => {
-        expect(() =>
-          errorHandler(new Error('Generic error'))
-        ).toThrowError('Generic error')
+        expect(() => errorHandler(new Error('Generic error'))).toThrowError('Generic error')
       })
     })
   })
