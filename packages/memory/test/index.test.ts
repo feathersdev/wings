@@ -1,68 +1,14 @@
-import { describe, it } from 'node:test'
-import assert from 'assert'
-import { adapterTests, Person } from '@wingshq/adapter-tests'
+import { describe, it, expect, beforeAll, afterAll } from 'vitest'
+import {
+  commonTests,
+  wingsTests,
+  feathersTests,
+  WINGS_CONFIG,
+  FEATHERS_CONFIG,
+  Person
+} from '@wingshq/adapter-tests'
 
-import { MemoryAdapter } from '../src'
-
-const testSuite = adapterTests([
-  '.options',
-  '.get',
-  '.get + $select',
-  '.get + id + query',
-  '.get + NotFound',
-  '.get + id + query id',
-  '.find',
-  '.find + paginate + query',
-  '.find + $and',
-  '.find + $and + $or',
-  '.remove',
-  '.remove + $select',
-  '.remove + id + query',
-  '.remove + multi',
-  '.remove + multi no pagination',
-  '.remove + id + query id',
-  '.update',
-  '.update + $select',
-  '.update + id + query',
-  '.update + NotFound',
-  '.update + id + query id',
-  '.update + query + NotFound',
-  '.patch',
-  '.patch + $select',
-  '.patch + id + query',
-  '.patch multiple',
-  '.patch multiple no pagination',
-  '.patch multi query same',
-  '.patch multi query changed',
-  '.patch + query + NotFound',
-  '.patch + NotFound',
-  '.patch + id + query id',
-  '.create',
-  '.create ignores query',
-  '.create + $select',
-  '.create multi',
-  '.find + equal',
-  '.find + equal multiple',
-  '.find + $sort',
-  '.find + $limit',
-  '.find + $limit 0',
-  '.find + $skip',
-  '.find + $select',
-  '.find + $or',
-  '.find + $in',
-  '.find + $nin',
-  '.find + $lt',
-  '.find + $lte',
-  '.find + $gt',
-  '.find + $gte',
-  '.find + $ne',
-  '.find + $gt + $lt + $sort',
-  '.find + $or nested + $sort',
-  '.find + paginate',
-  '.find + paginate + $limit + $skip',
-  '.find + paginate + $limit 0',
-  '.find + paginate + params'
-])
+import { MemoryAdapter, FeathersMemoryAdapter } from '../src'
 
 type Animal = {
   id: number
@@ -71,22 +17,20 @@ type Animal = {
 }
 
 describe('Wings Memory Adapter', () => {
-  const service = new MemoryAdapter<Person>()
-  const customIdService = new MemoryAdapter<Person>({
-    id: 'customid'
+  let adapter: MemoryAdapter<Person>
+  let customIdAdapter: MemoryAdapter<Person>
+
+  beforeAll(() => {
+    adapter = new MemoryAdapter<Person>()
+    customIdAdapter = new MemoryAdapter<Person>({
+      id: 'customid'
+    })
   })
 
-  it('update with string id works', async () => {
-    const person = await service.create({
-      name: 'Tester',
-      age: 33
-    })
-
-    const updatedPerson = await service.update(person.id.toString(), person)
-
-    assert.strictEqual(typeof updatedPerson.id, 'number')
-
-    await service.remove(person.id!.toString())
+  afterAll(async () => {
+    // Clean up any remaining data
+    await adapter.removeAll()
+    await customIdAdapter.removeAll()
   })
 
   it('patch record with prop also in query', async () => {
@@ -102,11 +46,11 @@ describe('Wings Memory Adapter', () => {
       }
     ])
 
-    const [updated] = await animals.patch(null, { age: 40 }, { query: { age: 30 } })
+    const [updated] = await animals.patchMany({ age: 40 }, { query: { age: 30 }, allowAll: false })
 
-    assert.strictEqual(updated.age, 40)
+    expect(updated.age).toBe(40)
 
-    await animals.remove(null, {})
+    await animals.removeAll()
   })
 
   it('allows to pass custom find and sort matcher', async () => {
@@ -133,88 +77,214 @@ describe('Wings Memory Adapter', () => {
       query: { something: 1, $sort: { something: 1 } }
     })
 
-    assert.ok(sorterCalled, 'sorter called')
-    assert.ok(matcherCalled, 'matcher called')
+    expect(sorterCalled).toBe(true)
+    expect(matcherCalled).toBe(true)
   })
 
   it('does not modify the original data', async () => {
-    const person = await service.create({
+    const person = await adapter.create({
       name: 'Delete tester',
       age: 33
     })
 
     delete (person as any).age
 
-    const otherPerson = await service.get(person.id!)
+    const otherPerson = await adapter.get(person.id!)
 
-    try {
-      assert.strictEqual(otherPerson.age, 33)
-    } finally {
-      await service.remove(person.id!)
-    }
-  })
+    expect(otherPerson).not.toBeNull()
+    expect(otherPerson?.age).toBe(33)
 
-  it('update with null throws error', async () => {
-    await assert.rejects(() => service.update(null as any, {}), {
-      message: "You can not replace multiple instances. Did you mean 'patch'?"
-    })
+    await adapter.remove(person.id!)
   })
 
   it('use $select as only query property', async () => {
-    const person = await service.create({
+    const person = await adapter.create({
       name: 'Tester',
       age: 42
     })
 
-    try {
-      const results = await service.find({
-        query: {
-          $select: ['name']
-        }
-      })
+    const results = await adapter.find({
+      query: {
+        $select: ['name']
+      }
+    })
 
-      assert.deepStrictEqual(results[0], { id: person.id, name: 'Tester' })
-    } finally {
-      await service.remove(person.id!)
-    }
+    expect(results[0]).toEqual({ id: person.id, name: 'Tester' })
+
+    await adapter.remove(person.id!)
   })
 
   it('using $limit still returns correct total', async () => {
     for (let i = 0; i < 10; i++) {
-      await service.create({
+      await adapter.create({
         name: `Tester ${i}`,
         age: 19
       })
-      await service.create({
+      await adapter.create({
         name: `Tester ${i}`,
         age: 20
       })
     }
 
-    try {
-      const results = await service.find({
-        paginate: true,
-        query: {
-          $skip: 3,
-          $limit: 5,
-          age: 19
-        }
-      })
+    const results = await adapter.find({
+      paginate: true,
+      query: {
+        $skip: 3,
+        $limit: 5,
+        age: 19
+      }
+    })
 
-      assert.strictEqual(results.total, 10)
-      assert.strictEqual(results.skip, 3)
-      assert.strictEqual(results.limit, 5)
-    } finally {
-      await service.remove(null, {
-        query: {
-          age: {
-            $in: [19, 20]
-          }
+    expect(results.total).toBe(10)
+    expect(results.skip).toBe(3)
+    expect(results.limit).toBe(5)
+
+    await adapter.removeMany({
+      query: {
+        age: {
+          $in: [19, 20]
         }
-      })
-    }
+      },
+      allowAll: false
+    })
   })
 
-  testSuite(service, 'id')
-  testSuite(customIdService, 'customid')
+  it('handles $like operator', async () => {
+    await adapter.create([
+      { name: 'Alice Johnson', age: 25 },
+      { name: 'Bob Smith', age: 30 },
+      { name: 'Charlie Brown', age: 35 }
+    ])
+
+    const results = await adapter.find({
+      query: {
+        name: { $like: '%Smith' }
+      }
+    })
+
+    expect(results.length).toBe(1)
+    expect(results[0].name).toBe('Bob Smith')
+
+    await adapter.removeMany({ query: { age: { $gte: 25 } }, allowAll: false })
+  })
+
+  it('handles $ilike operator (case insensitive)', async () => {
+    await adapter.create([
+      { name: 'Alice JOHNSON', age: 25 },
+      { name: 'bob smith', age: 30 },
+      { name: 'Charlie Brown', age: 35 }
+    ])
+
+    const results = await adapter.find({
+      query: {
+        name: { $ilike: '%johnson' }
+      }
+    })
+
+    expect(results.length).toBe(1)
+    expect(results[0].name).toBe('Alice JOHNSON')
+
+    await adapter.removeMany({ query: { age: { $gte: 25 } }, allowAll: false })
+  })
+
+  it('handles $isNull operator', async () => {
+    await adapter.create([
+      { name: 'Alice', age: null },
+      { name: 'Bob', age: 30 },
+      { name: 'Charlie' } // age undefined
+    ])
+
+    const nullResults = await adapter.find({
+      query: {
+        age: { $isNull: true }
+      }
+    })
+
+    expect(nullResults.length).toBe(2) // null and undefined both match
+
+    const notNullResults = await adapter.find({
+      query: {
+        age: { $isNull: false }
+      }
+    })
+
+    expect(notNullResults.length).toBe(1)
+    expect(notNullResults[0].name).toBe('Bob')
+
+    await adapter.removeMany({ query: { name: { $in: ['Alice', 'Bob', 'Charlie'] } }, allowAll: false })
+  })
+
+  // Run centralized test suites
+  commonTests(() => adapter as any, 'id', WINGS_CONFIG)
+  wingsTests(() => adapter as any, 'id', WINGS_CONFIG)
+
+  // Run tests for custom ID field
+  commonTests(() => customIdAdapter as any, 'customid', WINGS_CONFIG)
+  wingsTests(() => customIdAdapter as any, 'customid', WINGS_CONFIG)
+})
+
+describe('Feathers Memory Adapter (Compatibility)', () => {
+  let adapter: FeathersMemoryAdapter<Person>
+  let customIdAdapter: FeathersMemoryAdapter<Person>
+
+  beforeAll(() => {
+    adapter = new FeathersMemoryAdapter<Person>()
+    customIdAdapter = new FeathersMemoryAdapter<Person>({
+      id: 'customid'
+    })
+  })
+
+  afterAll(async () => {
+    // Clean up any remaining data
+    await adapter.remove(null)
+    await customIdAdapter.remove(null)
+  })
+
+  it('update with string id works', async () => {
+    const person = await adapter.create({
+      name: 'Tester',
+      age: 33
+    })
+
+    const updatedPerson = await adapter.update(person.id!.toString(), person)
+
+    expect(typeof updatedPerson.id).toBe('number')
+
+    await adapter.remove(person.id!.toString())
+  })
+
+  it('update with null throws error', async () => {
+    await expect(adapter.update(null as any, {})).rejects.toThrow(
+      "You can not replace multiple instances. Did you mean 'patch'?"
+    )
+  })
+
+  it('throws NotFound errors', async () => {
+    await expect(adapter.get(999999)).rejects.toThrow('No record found for id')
+    await expect(adapter.update(999999, { name: 'Test' })).rejects.toThrow('No record found for id')
+    await expect(adapter.patch(999999, { name: 'Test' })).rejects.toThrow('No record found for id')
+    await expect(adapter.remove(999999)).rejects.toThrow('No record found for id')
+  })
+
+  it('bulk operations work with null id', async () => {
+    await adapter.create([
+      { name: 'User 1', age: 25 },
+      { name: 'User 2', age: 30 }
+    ])
+
+    const patched = await adapter.patch(null, { age: 35 })
+    expect(patched.length).toBe(2)
+    expect(patched.every((p) => p.age === 35)).toBe(true)
+
+    const removed = await adapter.remove(null)
+    expect(removed.length).toBe(2)
+  })
+
+  // Run centralized test suites
+  commonTests(() => adapter as any, 'id', FEATHERS_CONFIG)
+  feathersTests(() => adapter as any, 'id', FEATHERS_CONFIG)
+
+  // Run tests for custom ID field
+  commonTests(() => customIdAdapter as any, 'customid', FEATHERS_CONFIG)
+  feathersTests(() => customIdAdapter as any, 'customid', FEATHERS_CONFIG)
 })
