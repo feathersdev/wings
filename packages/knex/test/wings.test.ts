@@ -1,6 +1,7 @@
 import { describe, beforeAll, afterAll } from 'vitest'
 import { commonTests, wingsTests, WINGS_CONFIG } from '@wingshq/adapter-tests'
 import { KnexAdapter } from '../src/index'
+import { errorHandler } from '../src/error-handler'
 import { setupCleanDatabase, TestDatabaseSetup } from './test-utils'
 
 describe('Wings Knex Adapter', () => {
@@ -23,7 +24,7 @@ describe('Wings Knex Adapter', () => {
   })
 
   // Run the comprehensive test suites
-  commonTests(createService, 'id', WINGS_CONFIG)
+  commonTests(createService, 'id', WINGS_CONFIG, errorHandler)
   wingsTests(createService, 'id')
 })
 
@@ -48,6 +49,6 @@ describe('Wings Knex Adapter with custom id', () => {
   })
 
   // Run the comprehensive test suites
-  commonTests(createService, 'customid', WINGS_CONFIG)
+  commonTests(createService, 'customid', WINGS_CONFIG, errorHandler)
   wingsTests(createService, 'customid')
 })

@@ -66,10 +66,11 @@ import { feathersTests } from './feathersjs/index.js'
 export function fullWingsTests<T extends WingsAdapter<Person>>(
   serviceFactory: ServiceFactory<T>,
   idProp: string,
-  config: TestConfig = WINGS_CONFIG
+  config: TestConfig = WINGS_CONFIG,
+  errorHandler?: (error: any) => void
 ) {
   describe('Full Wings Adapter Test Suite', () => {
-    commonTests(serviceFactory, idProp, config)
+    commonTests(serviceFactory, idProp, config, errorHandler)
     wingsTests(serviceFactory, idProp, config)
   })
 }
@@ -81,10 +82,11 @@ export function fullWingsTests<T extends WingsAdapter<Person>>(
 export function fullFeathersTests<T extends FeathersAdapter<Person>>(
   serviceFactory: ServiceFactory<T>,
   idProp: string,
-  config: TestConfig = FEATHERS_CONFIG
+  config: TestConfig = FEATHERS_CONFIG,
+  errorHandler?: (error: any) => void
 ) {
   describe('Full FeathersJS Adapter Test Suite', () => {
-    commonTests(serviceFactory, idProp, { ...config, alwaysPaginate: true })
+    commonTests(serviceFactory, idProp, { ...config, alwaysPaginate: true }, errorHandler)
     feathersTests(serviceFactory, idProp, config)
   })
 }
@@ -97,10 +99,11 @@ export function fullCompatibilityTests<T extends WingsAdapter<Person> & Feathers
   serviceFactory: ServiceFactory<T>,
   idProp: string,
   wingsConfig: TestConfig = WINGS_CONFIG,
-  feathersConfig: TestConfig = FEATHERS_CONFIG
+  feathersConfig: TestConfig = FEATHERS_CONFIG,
+  errorHandler?: (error: any) => void
 ) {
   describe('Full Compatibility Test Suite', () => {
-    commonTests(serviceFactory, idProp, wingsConfig)
+    commonTests(serviceFactory, idProp, wingsConfig, errorHandler)
     wingsTests(serviceFactory, idProp, wingsConfig)
     feathersTests(serviceFactory, idProp, feathersConfig)
   })
