@@ -40,6 +40,7 @@ export {
   testFeathersPagination,
   testFeathersBulkOperations,
   testFeathersUpdate,
+  testFeathersWrapperBehaviors,
   feathersTests
 } from './feathersjs/index.js'
 

@@ -46,6 +46,7 @@ export async function createPeopleTable(db: any, tableName = 'people', idField =
     table.integer('age')
     table.integer('time')
     table.boolean('created')
+    table.string('email')
     return table
   })
 }

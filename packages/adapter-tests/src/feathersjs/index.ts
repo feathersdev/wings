@@ -6,12 +6,14 @@ export { testFeathersErrorHandling } from './error-handling.js'
 export { testFeathersPagination } from './pagination.js'
 export { testFeathersBulkOperations } from './bulk-operations.js'
 export { testFeathersUpdate } from './update.js'
+export { testFeathersWrapperBehaviors } from './wrapper-behaviors.js'
 
 // Import for the test suite composer
 import { testFeathersErrorHandling } from './error-handling.js'
 import { testFeathersPagination } from './pagination.js'
 import { testFeathersBulkOperations } from './bulk-operations.js'
 import { testFeathersUpdate } from './update.js'
+import { testFeathersWrapperBehaviors } from './wrapper-behaviors.js'
 
 // Test suite composer for FeathersJS functionality
 export function feathersTests<T extends FeathersAdapter<Person>>(
@@ -24,5 +26,6 @@ export function feathersTests<T extends FeathersAdapter<Person>>(
     testFeathersPagination(serviceFactory, idProp, config)
     testFeathersBulkOperations(serviceFactory, idProp, config)
     testFeathersUpdate(serviceFactory, idProp, config)
+    testFeathersWrapperBehaviors(serviceFactory, idProp, config)
   })
 }
