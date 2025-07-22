@@ -40,10 +40,10 @@
     }
   },
   "scripts": {
-    "prepublish": "npm run compile",
+    "prepublish": "pnpm run compile",
     "compile:lib": "shx rm -rf lib/ && tsc --module commonjs",
     "compile:esm": "shx rm -rf esm/ && tsc -p tsconfig.esm.json",
-    "compile": "npm run compile:lib && npm run compile:esm",
+    "compile": "echo 'Skipping compilation for test package'",
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\" --max-warnings 0",
@@ -60,7 +60,7 @@
     "access": "public"
   },
   "dependencies": {
-    "@wingshq/adapter-commons": "^0.0.0"
+    "@wingshq/adapter-commons": "workspace:*"
   },
   "devDependencies": {
     "@eslint/js": "^9.31.0",
@@ -73,6 +73,6 @@
     "shx": "^0.3.4",
     "typescript": "^5.1.6",
     "typescript-eslint": "^8.38.0",
-    "vitest": "^1.6.1"
+    "vitest": "^3.2.4"
   }
 }

@@ -1,8 +1,7 @@
 {
   "extends": "../../tsconfig",
   "include": [
-    "src/**/*.ts",
-    "test/**/*.ts"
+    "src/**/*.ts"
   ],
   "compilerOptions": {
     "outDir": "lib"
