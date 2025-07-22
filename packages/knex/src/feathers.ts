@@ -36,6 +36,7 @@ export class FeathersKnexAdapter<T extends Record<string, any> = any> implements
 
   async find(params?: FeathersParams & { paginate?: false }): Promise<T[]>
   async find(params: FeathersParams & { paginate: true }): Promise<Paginated<T>>
+  async find(params?: FeathersParams): Promise<Paginated<T> | T[]>
   async find(params?: FeathersParams): Promise<Paginated<T> | T[]> {
     // FeathersJS always returns paginated unless explicitly disabled
     if (params?.paginate === false) {
@@ -46,13 +47,10 @@ export class FeathersKnexAdapter<T extends Record<string, any> = any> implements
     }
 
     // Otherwise always paginate (FeathersJS default behavior)
-    const result = await this.wingsService.find({
+    return this.wingsService.find({
       ...(params as KnexParams),
       paginate: true
     })
-
-    // Result should already be paginated from Wings adapter
-    return result
   }
 
   async get(id: Id, params?: FeathersParams): Promise<T> {

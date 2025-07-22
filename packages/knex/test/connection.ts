@@ -27,6 +27,7 @@ export const connection = (DB: string, testName?: string) => {
     client: 'sqlite3',
     connection: {
       filename: testName ? `./db-${testName}.sqlite` : './db.sqlite'
-    }
+    },
+    useNullAsDefault: true
   }
 }

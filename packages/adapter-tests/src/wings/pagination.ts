@@ -50,6 +50,21 @@ export function testWingsPagination<T extends WingsAdapter<Person>>(
     it('should return Paginated object when paginate: true', async () => {
       const result = await service.find({ paginate: true, query: { $sort: { name: 1 } } })
 
+      console.log('=== WINGS PAGINATION DEBUG ===')
+      console.log('result:', result)
+      console.log('typeof result:', typeof result)
+      console.log('Array.isArray(result):', Array.isArray(result))
+      if (result && typeof result === 'object' && !Array.isArray(result)) {
+        console.log('result.total:', result.total)
+        console.log('typeof result.total:', typeof result.total)
+        console.log('result.limit:', result.limit)
+        console.log('typeof result.limit:', typeof result.limit)
+        console.log('result.skip:', result.skip)
+        console.log('typeof result.skip:', typeof result.skip)
+        console.log('result.data:', result.data)
+        console.log('result.data.length:', result.data?.length)
+      }
+
       expect(result && typeof result === 'object').toBe(true)
       expect(Array.isArray(result)).toBe(false)
       expect(typeof result.total).toBe('number')

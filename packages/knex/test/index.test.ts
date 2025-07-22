@@ -16,14 +16,6 @@ const createPeopleService = () => {
   })
 }
 
-const _createPeopleIdService = () => {
-  return new KnexAdapter<Person>({
-    Model: dbSetup.db,
-    id: 'customid',
-    name: 'people-customid'
-  })
-}
-
 type Todo = {
   id: number
   text: string
@@ -34,8 +26,12 @@ type Todo = {
 class TodoAdapter extends KnexAdapter<Todo> {
   createQuery(params: any) {
     const query = super.createQuery(params)
-
-    query.join('people as person', 'todos.personId', 'person.id').select('person.name as personName')
+    
+    // Apply join after base query is built
+    query.join('people as person', 'todos.personId', 'person.id')
+    
+    // Add the personName to the existing select, don't clear it
+    query.select('person.name as personName')
 
     return query
   }

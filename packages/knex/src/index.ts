@@ -40,6 +40,7 @@ export interface KnexParams<T = AdapterQuery<any>> extends AdapterParams<T> {
   schema?: string
   knex?: Knex.QueryBuilder
   transaction?: Knex.Transaction
+  paginate?: boolean
 }
 
 const RETURNING_CLIENTS = ['postgresql', 'pg', 'oracledb', 'mssql']
@@ -142,9 +143,9 @@ export class KnexAdapter<T extends Record<string, any> = any>
   private applySelect(builder: Knex.QueryBuilder, select: string[] | undefined, name: string, id: string) {
     if (select) {
       const selectFields = select.map((column) =>
-        String(column).includes('.') ? column : `${name}.${String(column)}`
+        String(column).includes('.') ? String(column) : `${name}.${String(column)}`
       )
-      builder.select(...new Set([...selectFields, `${name}.${id}`]))
+      builder.select(...Array.from(new Set([...selectFields, `${name}.${id}`])))
     } else {
       builder.select(`${name}.*`)
     }
@@ -162,34 +163,38 @@ export class KnexAdapter<T extends Record<string, any> = any>
     const { $select, $sort, $limit = null, $skip = 0, ...query } = params?.query || {}
 
     return {
-      filters: { $select, $sort, $limit, $skip },
+      filters: { $select: $select as string[] | undefined, $sort, $limit, $skip },
       query
     }
   }
 
   async find(params: KnexParams & { paginate: true }): Promise<Paginated<T>>
   async find(params?: KnexParams & { paginate?: false }): Promise<T[]>
-  async find(params?: KnexParams & { paginate?: boolean }): Promise<T[] | Paginated<T>> {
-    const { filters } = this.filterQuery(params)
+  async find(params?: KnexParams): Promise<T[] | Paginated<T>> {
     const { name, id } = this.getOptions(params)
-    const builder = params?.knex ? params.knex.clone() : this.createQuery(params)
+    const { filters } = this.filterQuery(params)
+    const builder = this.createQuery(params)
+    const paginate = params?.paginate
 
-    // Apply pagination parameters
-    if (filters.$limit) builder.limit(filters.$limit)
-    if (filters.$skip) builder.offset(filters.$skip)
+    if (filters.$limit) {
+      builder.limit(filters.$limit)
+    }
 
-    // Handle MSSQL default sorting requirement
+    if (filters.$skip) {
+      builder.offset(filters.$skip)
+    }
+
     if (!filters.$sort && builder.client.driverName === 'mssql') {
       builder.orderBy(`${name}.${id}`, 'asc')
     }
 
-    const data = filters.$limit === 0 ? [] : await safeQueryExecution(builder, errorHandler)
+    const data = filters.$limit === 0 ? [] : await safeQueryExecution<T[]>(builder, errorHandler)
 
-    if (params?.paginate === true) {
+    if (paginate) {
       const total = await this.getCount(builder, name, id)
       return {
         total,
-        limit: filters.$limit,
+        limit: filters.$limit || 0,
         skip: filters.$skip || 0,
         data
       }
@@ -200,14 +205,16 @@ export class KnexAdapter<T extends Record<string, any> = any>
 
   private async getCount(builder: Knex.QueryBuilder, name: string, id: string): Promise<number> {
     const countBuilder = builder.clone().clearSelect().clearOrder().count(`${name}.${id} as total`)
-    const countResult = await safeQueryExecution(countBuilder, errorHandler)
+    // Clear any existing limit/offset that would affect the count
+    countBuilder.clear('limit').clear('offset')
+    const countResult = await safeQueryExecution<any[]>(countBuilder, errorHandler)
     return extractCountValue(countResult)
   }
 
   async get(id: Primitive, params?: KnexParams): Promise<T | null> {
     const { name, id: idField } = this.getOptions(params)
     const builder = params?.knex ? params.knex.clone() : this.createQuery(params)
-    const data = await safeQueryExecution(builder.andWhere(`${name}.${idField}`, '=', id), errorHandler)
+    const data = await safeQueryExecution<T[]>(builder.andWhere(`${name}.${idField}`, '=', id), errorHandler)
     return data.length === 1 ? data[0] : null
   }
 
@@ -239,11 +246,7 @@ export class KnexAdapter<T extends Record<string, any> = any>
     const { name, id: idField } = this.getOptions(params)
     const patchData = _.omit(data, this.id)
 
-    // Check if record exists with constraints
-    const existing = await this.get(id, params)
-    if (!existing) return null
-
-    // Apply update with query constraints
+    // Build update query with id and any query constraints
     const updateBuilder = this.db(params).where(`${name}.${idField}`, id)
     if (params?.query) {
       const { query } = this.filterQuery(params)
@@ -251,7 +254,13 @@ export class KnexAdapter<T extends Record<string, any> = any>
     }
 
     const updateResult = await safeQueryExecution(updateBuilder.update(patchData), errorHandler)
-    return updateResult === 0 ? null : this.get(id, params)
+    if (updateResult === 0) {
+      return null
+    }
+    
+    // When getting the updated record, preserve $select but remove other query constraints
+    const selectOnlyParams = params?.query?.$select ? { query: { $select: params.query.$select } } : undefined
+    return this.get(id, selectOnlyParams)
   }
 
   async patchMany(data: Partial<T>, params: KnexParams & { allowAll?: boolean }): Promise<T[]> {
