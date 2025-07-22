@@ -48,7 +48,9 @@
     "compile:lib": "shx rm -rf lib/ && tsc --module commonjs",
     "compile:esm": "shx rm -rf esm/ && tsc --module es2020 --outDir esm",
     "compile": "pnpm run compile:lib && pnpm run compile:esm",
-    "test": "vitest run"
+    "test": "vitest run",
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\" --max-warnings 0",
+    "lint:fix": "eslint \"src/**/*.ts\" \"test/**/*.ts\" --fix && prettier \"src/**/*.ts\" \"test/**/*.ts\" --write"
   },
   "publishConfig": {
     "access": "public"

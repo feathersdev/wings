@@ -12,16 +12,17 @@ import {
   Filter
 } from 'mongodb'
 import {
-  AdapterInterface,
+  WingsAdapterInterface,
   AdapterOptions,
   AdapterParams,
   AdapterQuery,
   Id,
   Paginated,
-  select
+  select,
+  Primitive
 } from '@wingshq/adapter-commons'
 import { _ } from '@feathersjs/commons'
-import { BadRequest, GeneralError, NotFound } from '@feathersjs/errors'
+import { BadRequest, GeneralError } from '@feathersjs/errors'
 
 export interface MongodbOptions extends AdapterOptions {
   Model: Collection | Promise<Collection>
@@ -65,9 +66,8 @@ export class MongodbAdapter<
   Result = unknown,
   Data = Partial<Result>,
   PatchData = Partial<Data>,
-  UpdateData = Data,
   Params extends MongodbParams<Result> = MongodbParams<Result>
-> implements AdapterInterface<Result, Data, PatchData, UpdateData, MongodbOptions, Params>
+> implements WingsAdapterInterface<Result, Data, PatchData, MongodbOptions, Params>
 {
   options: MongodbOptions
 
@@ -98,9 +98,78 @@ export class MongodbAdapter<
     return id
   }
 
-  filterQuery(id: NullableAdapterId, params?: Params) {
+  convertSqlLikeOperators(query: any): any {
+    if (!query || typeof query !== 'object') {
+      return query
+    }
+
+    const converted = { ...query }
+
+    // Convert all keys recursively
+    Object.keys(converted).forEach((key) => {
+      const value = converted[key]
+
+      if (value && typeof value === 'object') {
+        // Skip RegExp objects - they should be passed through unchanged
+        if (value instanceof RegExp) {
+          return
+        }
+
+        if (Array.isArray(value)) {
+          // Handle arrays (like $or, $and)
+          converted[key] = value.map((item) => this.convertSqlLikeOperators(item))
+        } else {
+          // Handle nested objects
+          const convertedValue = { ...value }
+          Object.keys(convertedValue).forEach((op) => {
+            const opValue = convertedValue[op]
+
+            if (op === '$like' && typeof opValue === 'string') {
+              delete convertedValue[op]
+              // Convert SQL LIKE pattern to MongoDB regex
+              const regexPattern = opValue
+                .replace(/([.+*?^${}()|[\]\\])/g, '\\$1') // Escape regex special chars
+                .replace(/%/g, '.*') // Convert % to .*
+                .replace(/_/g, '.') // Convert _ to .
+              convertedValue.$regex = new RegExp(`^${regexPattern}$`, 'i')
+            } else if (op === '$notlike' && typeof opValue === 'string') {
+              delete convertedValue[op]
+              // Convert SQL NOT LIKE pattern to MongoDB not regex
+              const regexPattern = opValue
+                .replace(/([.+*?^${}()|[\]\\])/g, '\\$1') // Escape regex special chars
+                .replace(/%/g, '.*') // Convert % to .*
+                .replace(/_/g, '.') // Convert _ to .
+              convertedValue.$not = { $regex: new RegExp(`^${regexPattern}$`, 'i') }
+            } else if (op === '$ilike' && typeof opValue === 'string') {
+              delete convertedValue[op]
+              // Convert SQL ILIKE pattern to MongoDB case-insensitive regex
+              const regexPattern = opValue
+                .replace(/([.+*?^${}()|[\]\\])/g, '\\$1') // Escape regex special chars
+                .replace(/%/g, '.*') // Convert % to .*
+                .replace(/_/g, '.') // Convert _ to .
+              convertedValue.$regex = new RegExp(`^${regexPattern}$`, 'i')
+            } else if (op === '$isNull') {
+              delete convertedValue[op]
+              if (opValue === true) {
+                // Find fields that are null or undefined
+                convertedValue.$eq = null
+              } else if (opValue === false) {
+                // Find fields that are not null and exist
+                convertedValue.$ne = null
+              }
+            }
+          })
+          converted[key] = convertedValue
+        }
+      }
+    })
+
+    return converted
+  }
+
+  filterQuery(id: AdapterId | null, params?: Params) {
     const { $select, $sort, $limit, $skip = 0, ..._query } = (params?.query || {}) as AdapterQuery<Result>
-    const query = _query as { [key: string]: any }
+    const query = this.convertSqlLikeOperators(_query) as { [key: string]: any }
 
     if (id !== null) {
       query.$and = (query.$and || []).concat({
@@ -145,7 +214,7 @@ export class MongodbAdapter<
   async aggregateRaw(params?: Params) {
     const model = await this.getModel(params)
     const pipeline = params?.pipeline || []
-    const index = pipeline.findIndex((stage: Document) => stage.$feathers)
+    const index = pipeline.findIndex((stage: Document) => stage.$feathers || stage.$wings)
     const before = index >= 0 ? pipeline.slice(0, index) : []
     const feathersPipeline = this.makeFeathersPipeline(params)
     const after = index >= 0 ? pipeline.slice(index + 1) : pipeline
@@ -153,6 +222,8 @@ export class MongodbAdapter<
     return model.aggregate([...before, ...feathersPipeline, ...after])
   }
 
+  // Creates the pipeline stages for Wings/Feathers query parameters
+  // Used when $wings or $feathers stage is specified in aggregation pipeline
   makeFeathersPipeline(params?: Params) {
     const { filters, query } = this.filterQuery(null, params)
     const pipeline: Document[] = [{ $match: query }]
@@ -197,7 +268,7 @@ export class MongodbAdapter<
   }
 
   async _findOrGet(id: NullableAdapterId, params?: Params) {
-    return id === null ? await this.find(params) : await this.get(id, params)
+    return id === null ? await this.find(params) : await this.get(id as Primitive, params)
   }
 
   normalizeId<D>(id: NullableAdapterId, data: D): D {
@@ -216,19 +287,24 @@ export class MongodbAdapter<
     return data
   }
 
-  async find(params: Params & { paginate: true }): Promise<Paginated<Result>>
   async find(params?: Params & { paginate?: false }): Promise<Result[]>
+  async find(params: Params & { paginate: true }): Promise<Paginated<Result>>
   async find(params?: Params & { paginate?: boolean }): Promise<Result[] | Paginated<Result>> {
     const { filters, query } = this.filterQuery(null, params)
-    const useAggregation = !params?.mongodb && filters.$limit !== 0
+    const useAggregation = params?.pipeline || (!params?.mongodb && filters.$limit !== 0)
     const countDocuments = async () => {
       if (params?.paginate) {
         const model = await this.getModel(params)
+        let count: any
         if (this.options.useEstimatedDocumentCount && typeof model.estimatedDocumentCount === 'function') {
-          return model.estimatedDocumentCount()
+          count = await model.estimatedDocumentCount()
         } else {
-          return model.countDocuments(query, { ...params?.mongodb })
+          count = await model.countDocuments(query, { ...params?.mongodb })
         }
+        // Ensure we return a plain number, not a MongoDB Long or other type
+        return typeof count === 'object' && count !== null && 'toNumber' in count
+          ? count.toNumber()
+          : Number(count)
       }
       return Promise.resolve(0)
     }
@@ -242,7 +318,7 @@ export class MongodbAdapter<
     if (params?.paginate) {
       return {
         total,
-        limit: filters.$limit !== undefined ? filters.$limit : null,
+        limit: filters.$limit || 0,
         skip: filters.$skip || 0,
         data
       }
@@ -251,11 +327,11 @@ export class MongodbAdapter<
     return data
   }
 
-  async get(id: AdapterId, params?: Params): Promise<Result> {
+  async get(id: Primitive, params?: Params): Promise<Result | null> {
     const {
       query,
       filters: { $select }
-    } = this.filterQuery(id, params)
+    } = this.filterQuery(id as AdapterId, params)
     const projection = $select
       ? {
           projection: {
@@ -273,7 +349,7 @@ export class MongodbAdapter<
       .then((model) => model.findOne(query, findOptions))
       .then((data) => {
         if (data == null) {
-          throw new NotFound(`No record found for id '${id}'`)
+          return null
         }
 
         return data
@@ -313,23 +389,14 @@ export class MongodbAdapter<
     return promise.then(select(params, this.id)).catch(errorHandler)
   }
 
-  async update(id: Id, data: UpdateData, params?: Params): Promise<Result> {
-    if (id === null || Array.isArray(data)) {
-      throw new BadRequest("You can not replace multiple instances. Did you mean 'patch'?")
+  async patch(id: Primitive, data: PatchData, params?: Params): Promise<Result | null> {
+    if (id === null || id === undefined) {
+      throw new BadRequest('patch() requires a non-null id. Use patchMany() for bulk updates.')
     }
-
-    const model = await this.getModel(params)
-    const { query } = this.filterQuery(id, params)
-    const replaceOptions = { ...params?.mongodb }
-
-    await model.replaceOne(query, this.normalizeId(id, data), replaceOptions)
-
-    return this._findOrGet(id, params).catch(errorHandler)
+    return this._patchSingle(id as Id, data, params)
   }
 
-  async patch(id: Id, data: PatchData, params?: Params): Promise<Result>
-  async patch(id: null, data: PatchData, params?: Params): Promise<Result[]>
-  async patch(id: Id | null, _data: PatchData, params?: Params): Promise<Result[] | Result> {
+  private async _patchSingle(id: Id, _data: PatchData, params?: Params): Promise<Result | null> {
     const data = this.normalizeId(id, _data)
     const model = await this.getModel(params)
     const {
@@ -351,7 +418,61 @@ export class MongodbAdapter<
 
       return current
     }, {} as any)
-    const originalIds = await this._findOrGet(id, {
+
+    // First, let's get the existing document to make sure it exists and matches the query
+    const existingDoc = await model.findOne(query)
+    if (!existingDoc) {
+      return null
+    }
+
+    // Update the document
+    await model.updateOne(query, modifier, updateOptions)
+
+    // Get the updated document with proper field selection
+    const projection = $select
+      ? {
+          projection: {
+            ...this.getSelect($select),
+            [this.id]: 1
+          }
+        }
+      : {}
+
+    const updatedDoc = await model.findOne({ [this.id]: existingDoc[this.id] }, projection)
+    return updatedDoc as Result
+  }
+
+  async patchMany(data: PatchData, params: Params & { allowAll?: boolean }): Promise<Result[]> {
+    if (!params.query && !params.allowAll) {
+      throw new BadRequest(
+        'No query provided and allowAll is not set. Use allowAll: true to update all records.'
+      )
+    }
+
+    const normalizedData = this.normalizeId(null, data)
+    const model = await this.getModel(params)
+    const {
+      query,
+      filters: { $select }
+    } = this.filterQuery(null, params)
+    const updateOptions = { ...params?.mongodb }
+    const modifier = Object.keys(normalizedData).reduce((current, key) => {
+      const value = (normalizedData as any)[key]
+
+      if (key.charAt(0) !== '$') {
+        current.$set = {
+          ...current.$set,
+          [key]: value
+        }
+      } else {
+        current[key] = value
+      }
+
+      return current
+    }, {} as any)
+
+    // Get items that will be updated
+    const originalItems = await this.find({
       ...params,
       query: {
         ...query,
@@ -359,30 +480,68 @@ export class MongodbAdapter<
       },
       paginate: false
     })
-    const items = Array.isArray(originalIds) ? originalIds : [originalIds]
-    const idList = items.map((item: any) => item[this.id])
-    const findParams = {
-      ...params,
-      paginate: false,
-      query: {
-        [this.id]: { $in: idList },
-        $select
-      }
-    }
+    const idList = originalItems.map((item: any) => item[this.id])
 
     await model.updateMany(query, modifier, updateOptions)
 
-    return this._findOrGet(id, findParams).catch(errorHandler)
+    // Return updated items
+    return this.find({
+      ...params,
+      query: {
+        [this.id]: { $in: idList },
+        $select
+      },
+      paginate: false
+    }).catch(errorHandler)
   }
 
-  async remove(id: Id, params?: Params): Promise<Result>
-  async remove(id: null, params?: Params): Promise<Result[]>
-  async remove(id: Id | null, params?: Params): Promise<Result[] | Result> {
+  async remove(id: Primitive, params?: Params): Promise<Result | null> {
+    if (id === null || id === undefined) {
+      throw new BadRequest('remove() requires a non-null id. Use removeMany() for bulk removals.')
+    }
+    return this._removeSingle(id as Id, params)
+  }
+
+  private async _removeSingle(id: Id, params?: Params): Promise<Result | null> {
     const model = await this.getModel(params)
     const {
       query,
       filters: { $select }
     } = this.filterQuery(id, params)
+    const deleteOptions = { ...params?.mongodb }
+
+    // Get the document that will be deleted (with proper field selection)
+    const projection = $select
+      ? {
+          projection: {
+            ...this.getSelect($select),
+            [this.id]: 1
+          }
+        }
+      : {}
+
+    const item = await model.findOne(query, projection)
+    if (!item) {
+      return null
+    }
+
+    // Delete the document
+    await model.deleteOne(query, deleteOptions)
+    return item as Result
+  }
+
+  async removeMany(params: Params & { allowAll?: boolean }): Promise<Result[]> {
+    if (!params.query && !params.allowAll) {
+      throw new BadRequest(
+        'No query provided and allowAll is not set. Use allowAll: true to remove all records.'
+      )
+    }
+
+    const model = await this.getModel(params)
+    const {
+      query,
+      filters: { $select }
+    } = this.filterQuery(null, params)
     const deleteOptions = { ...params?.mongodb }
     const findParams = {
       ...params,
@@ -393,11 +552,25 @@ export class MongodbAdapter<
       }
     }
 
-    return this._findOrGet(id, findParams)
-      .then(async (items) => {
-        await model.deleteMany(query, deleteOptions)
-        return items
-      })
-      .catch(errorHandler)
+    // Get items that will be removed
+    const items = await this.find(findParams as Params & { paginate: false })
+    await model.deleteMany(query, deleteOptions)
+    return items
+  }
+
+  async removeAll(params?: Params): Promise<Result[]> {
+    const model = await this.getModel(params)
+    const deleteOptions = { ...params?.mongodb }
+
+    // Get all items first
+    const items = await this.find({ ...params, paginate: false } as Params & { paginate: false })
+    await model.deleteMany({}, deleteOptions)
+    return items
   }
 }
+
+// Export FeathersJS wrapper for backwards compatibility
+export { FeathersMongodbAdapter } from './feathers.js'
+
+// Default export is the Wings adapter
+export default MongodbAdapter
