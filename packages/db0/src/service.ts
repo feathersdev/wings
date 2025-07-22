@@ -251,8 +251,12 @@ export class Db0Service<RT extends DbRecord> {
               }
               break
             case '$ne':
-              clauses.push(`${Db0Service.quoteId(field, this.dialect)} != ?`)
-              vals.push(this.convertValue(v as Primitive))
+              if (v === null) {
+                clauses.push(`${Db0Service.quoteId(field, this.dialect)} IS NOT NULL`)
+              } else {
+                clauses.push(`${Db0Service.quoteId(field, this.dialect)} != ?`)
+                vals.push(this.convertValue(v as Primitive))
+              }
               break
             case '$gt':
               clauses.push(`${Db0Service.quoteId(field, this.dialect)} > ?`)
@@ -272,6 +276,10 @@ export class Db0Service<RT extends DbRecord> {
               break
             case '$like':
               clauses.push(`${Db0Service.quoteId(field, this.dialect)} LIKE ?`)
+              vals.push(v as string)
+              break
+            case '$notlike':
+              clauses.push(`${Db0Service.quoteId(field, this.dialect)} NOT LIKE ?`)
               vals.push(v as string)
               break
             case '$ilike':
@@ -295,8 +303,12 @@ export class Db0Service<RT extends DbRecord> {
           }
         }
       } else {
-        clauses.push(`${Db0Service.quoteId(field, this.dialect)} = ?`)
-        vals.push(this.convertValue(value as Primitive))
+        if (value === null) {
+          clauses.push(`${Db0Service.quoteId(field, this.dialect)} IS NULL`)
+        } else {
+          clauses.push(`${Db0Service.quoteId(field, this.dialect)} = ?`)
+          vals.push(this.convertValue(value as Primitive))
+        }
       }
     }
     return { sql: clauses.join(' AND '), vals }
