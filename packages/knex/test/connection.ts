@@ -1,4 +1,4 @@
-export const connection = (DB: string) => {
+export const connection = (DB: string, testName?: string) => {
   if (DB === 'mysql') {
     return {
       client: 'mysql',
@@ -26,7 +26,7 @@ export const connection = (DB: string) => {
   return {
     client: 'sqlite3',
     connection: {
-      filename: './db.sqlite'
+      filename: testName ? `./db-${testName}.sqlite` : './db.sqlite'
     }
   }
 }

@@ -1,5 +1,6 @@
 export type Id = number | string
 export type NullableId = Id | null
+export type Primitive = string | number | boolean | null
 
 /**
  * The object returned from `.find` call by standard database adapters
@@ -83,4 +84,33 @@ export interface AdapterInterface<
 
   remove(id: Id, params?: Params): Promise<Result>
   remove(id: null, params?: Params): Promise<Result[]>
+}
+
+/**
+ * Wings Adapter Interface - Modern adapter pattern with null returns and explicit bulk operations
+ */
+export interface WingsAdapterInterface<
+  Result = unknown,
+  Data = Partial<Result>,
+  PatchData = Partial<Data>,
+  Options extends AdapterOptions = AdapterOptions,
+  Params = AdapterParams<any>
+> {
+  id: string
+  options: Options
+
+  find(params?: Params & { paginate?: false }): Promise<Result[]>
+  find(params: Params & { paginate: true }): Promise<Paginated<Result>>
+
+  get(id: Primitive, params?: Params): Promise<Result | null>
+
+  create(data: Data[], params?: Params): Promise<Result[]>
+  create(data: Data, params?: Params): Promise<Result>
+
+  patch(id: Primitive, data: PatchData, params?: Params): Promise<Result | null>
+  patchMany(data: PatchData, params: Params & { allowAll?: boolean }): Promise<Result[]>
+
+  remove(id: Primitive, params?: Params): Promise<Result | null>
+  removeMany(params: Params & { allowAll?: boolean }): Promise<Result[]>
+  removeAll(params?: Params): Promise<Result[]>
 }

@@ -1,5 +1,6 @@
 {
   "name": "@wingshq/knex",
+  "type": "module",
   "description": "A Wings adapter for KnexJS",
   "version": "0.0.0",
   "homepage": "https://wings.codes",
@@ -41,6 +42,11 @@
       "import": "./esm/index.js",
       "require": "./lib/index.js",
       "types": "./src/index.ts"
+    },
+    "./feathers": {
+      "import": "./esm/feathers.js",
+      "require": "./lib/feathers.js",
+      "types": "./src/feathers.ts"
     }
   },
   "scripts": {
@@ -48,7 +54,9 @@
     "compile:lib": "shx rm -rf lib/ && tsc --module commonjs",
     "compile:esm": "shx rm -rf esm/ && tsc --module es2020 --outDir esm",
     "compile": "npm run compile:lib && npm run compile:esm",
-    "test": "npm run compile && shx rm -f db.slite && node --require ts-node/register --test test/**.test.ts"
+    "test": "vitest run",
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\" --max-warnings 0",
+    "lint:fix": "eslint \"src/**/*.ts\" \"test/**/*.ts\" --fix && prettier \"src/**/*.ts\" \"test/**/*.ts\" --write"
   },
   "publishConfig": {
     "access": "public"
@@ -61,7 +69,16 @@
   },
   "devDependencies": {
     "@wingshq/adapter-tests": "^0.0.0",
+    "@eslint/js": "^9.31.0",
+    "@typescript-eslint/eslint-plugin": "^8.38.0",
+    "@typescript-eslint/parser": "^8.38.0",
+    "eslint": "^9.31.0",
+    "eslint-config-prettier": "^10.1.8",
     "pg": "^8.11.3",
-    "sqlite3": "^5.1.6"
+    "prettier": "^3.6.2",
+    "sqlite3": "^5.1.6",
+    "typescript": "^5.8.3",
+    "typescript-eslint": "^8.38.0",
+    "vitest": "^1.6.1"
   }
 }
