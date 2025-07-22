@@ -1,5 +1,6 @@
 import type { Database, Primitive } from 'db0'
 import { GeneralError, BadRequest } from '@feathersjs/errors'
+import { errorHandler } from './error-handler'
 
 // Allow db0 identifier objects as sql arguments
 export interface Db0Identifier {
@@ -113,17 +114,25 @@ export class Db0Service<RT extends DbRecord> {
 
   // Rewrite placeholders for Postgres
   private async runSqlAll(this: Db0Service<RT>, sql: string, values: Primitive[]): Promise<any[]> {
-    if (this.dialect === 'postgres') {
-      sql = this.toPostgresPlaceholders(sql)
+    try {
+      if (this.dialect === 'postgres') {
+        sql = this.toPostgresPlaceholders(sql)
+      }
+      return this.db.prepare(sql).all(...values)
+    } catch (error) {
+      errorHandler(error)
     }
-    return this.db.prepare(sql).all(...values)
   }
 
   private async runSqlRun(this: Db0Service<RT>, sql: string, values: Primitive[]): Promise<any> {
-    if (this.dialect === 'postgres') {
-      sql = this.toPostgresPlaceholders(sql)
+    try {
+      if (this.dialect === 'postgres') {
+        sql = this.toPostgresPlaceholders(sql)
+      }
+      return this.db.prepare(sql).run(...values)
+    } catch (error) {
+      errorHandler(error)
     }
-    return this.db.prepare(sql).run(...values)
   }
 
   /**

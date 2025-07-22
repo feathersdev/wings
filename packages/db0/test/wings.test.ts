@@ -2,6 +2,7 @@ import { describe, beforeAll, afterAll } from 'vitest'
 import { createDatabase } from 'db0'
 import sqlite from 'db0/connectors/node-sqlite'
 import { Db0Service } from '../src/service.js'
+import { errorHandler } from '../src/error-handler.js'
 import { fullWingsTests, WINGS_CONFIG } from '@wingshq/adapter-tests'
 import type { DbRecord } from '../src/service.js'
 import type { Person } from '@wingshq/adapter-tests'
@@ -30,6 +31,6 @@ describe('Db0 Adapter - Comprehensive Test Suite', () => {
   // Create service factory function
   const createService = () => service
 
-  // Run the full Wings test suite (common + Wings-specific tests)
-  fullWingsTests(createService, 'id', WINGS_CONFIG)
+  // Run the full Wings test suite (common + Wings-specific tests) with error handler
+  fullWingsTests(createService, 'id', WINGS_CONFIG, errorHandler)
 })

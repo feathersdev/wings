@@ -1,6 +1,7 @@
 import { describe } from 'vitest'
 import { service } from '../src/feathers.js'
 import { commonTests, feathersTests, FEATHERS_CONFIG } from '@wingshq/adapter-tests'
+import { errorHandler } from '../src/error-handler.js'
 import { createDatabase } from 'db0'
 import sqlite from 'db0/connectors/node-sqlite'
 
@@ -28,8 +29,8 @@ describe('db0 FeathersJS adapter', () => {
     })
   }
 
-  // Run common tests with FeathersJS configuration
-  commonTests(createService, 'id', FEATHERS_CONFIG)
+  // Run common tests with FeathersJS configuration and error handler
+  commonTests(createService, 'id', FEATHERS_CONFIG, errorHandler)
 
   // Run FeathersJS-specific tests
   feathersTests(createService, 'id')
