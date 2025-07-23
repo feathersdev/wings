@@ -51,11 +51,36 @@ jobs:
           cache: 'pnpm'
       
       - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      
+      - name: Fix better-sqlite3 native bindings
         run: |
-          # Install with hoisted node_modules for native module compatibility
-          pnpm install --frozen-lockfile
-          # Rebuild native modules after installation
-          pnpm rebuild
+          # Rebuild native dependencies
+          pnpm rebuild better-sqlite3
+          
+          # Find where the binding file was actually built
+          echo "Looking for better_sqlite3.node files..."
+          find . -name "better_sqlite3.node" -type f 2>/dev/null || true
+          
+          # Copy binding to expected locations
+          # First, try to find the built file
+          BINDING=$(find . -name "better_sqlite3.node" -type f 2>/dev/null | head -1)
+          
+          if [ -n "$BINDING" ]; then
+            echo "Found binding at: $BINDING"
+            
+            # Create expected directories and copy the binding
+            mkdir -p node_modules/better-sqlite3/lib/binding/node-v115-linux-x64
+            cp "$BINDING" node_modules/better-sqlite3/lib/binding/node-v115-linux-x64/better_sqlite3.node
+            
+            # Also copy to other possible locations
+            mkdir -p node_modules/better-sqlite3/build/Release
+            cp "$BINDING" node_modules/better-sqlite3/build/Release/better_sqlite3.node
+            
+            echo "Copied binding to expected locations"
+          else
+            echo "Warning: Could not find better_sqlite3.node file"
+          fi
       
       - name: Build packages
         run: pnpm run compile
