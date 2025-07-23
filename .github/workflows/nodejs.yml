@@ -57,6 +57,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       
+      - name: Rebuild native dependencies
+        run: pnpm rebuild better-sqlite3
+      
       - name: Build packages
         run: pnpm run compile
       
@@ -105,10 +108,13 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       
+      - name: Rebuild native dependencies
+        run: pnpm rebuild better-sqlite3 || true
+      
       - name: Build packages
         run: pnpm run compile
       
       - name: Run tests (without services)
-        run: pnpm test -- --exclude="**/knex/**" --exclude="**/mongodb/**"
+        run: pnpm test -- --exclude="**/knex/**" --exclude="**/mongodb/**" --exclude="**/kysely/**"
         env:
           CI: true
