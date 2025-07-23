@@ -1,22 +1,25 @@
 name: CI
 
-on: [push, pull_request]
+on:
+  push:
+    branches: [ main, next ]
+  pull_request:
+    branches: [ main, next ]
 
 jobs:
-  build:
+  test:
     runs-on: ubuntu-latest
-
+    
     strategy:
       matrix:
-        node-version: [18.x, 20.x]
-
+        node-version: [20.x, 22.x]
+    
     services:
       postgres:
-        image: postgres:latest
+        image: postgres:16
         env:
           POSTGRES_DB: feathers
           POSTGRES_PASSWORD: postgres
-          POSTGRES_PORT: 5432
           POSTGRES_USER: postgres
         ports:
           - 5432:5432
@@ -25,23 +28,87 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
-
+      
+      mongodb:
+        image: mongo:7
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --eval 'db.adminCommand(\"ping\")'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    
     steps:
-      - uses: actions/checkout@v2
-      - name: Use Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v1
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.11.0
+      
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
-      - run: npm i npm -g
-      - run: npm install -g codeclimate-test-reporter
-      - run: npm install
-      - run: npm test
+          cache: 'pnpm'
+      
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      
+      - name: Build packages
+        run: pnpm run compile
+      
+      - name: Run linter
+        run: pnpm run lint
+      
+      - name: Run tests
+        run: pnpm test
         env:
           CI: true
           TEST_DB: postgres
-      - run: |
-          if [ "$CODECLIMATE_REPO_TOKEN" != "" ]; then
-            codeclimate-test-reporter < coverage/lcov.info
-          fi
+          NODE_OPTIONS: --experimental-vm-modules
+      
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        if: matrix.node-version == '20.x'
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./coverage/lcov.info
+          fail_ci_if_error: false
+          verbose: true
+  
+  build-matrix:
+    runs-on: ${{ matrix.os }}
+    
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        node-version: [20.x]
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.11.0
+      
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'pnpm'
+      
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      
+      - name: Build packages
+        run: pnpm run compile
+      
+      - name: Run tests (without services)
+        run: pnpm test -- --exclude="**/knex/**" --exclude="**/mongodb/**"
         env:
-          CODECLIMATE_REPO_TOKEN: ${{ secrets.codeclimate }}
+          CI: true
