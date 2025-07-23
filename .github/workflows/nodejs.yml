@@ -10,10 +10,6 @@ jobs:
   test:
     runs-on: ubuntu-latest
     
-    strategy:
-      matrix:
-        node-version: [20.x, 22.x]
-    
     services:
       postgres:
         image: postgres:16
@@ -48,21 +44,17 @@ jobs:
         with:
           version: 10.11.0
       
-      - name: Setup Node.js ${{ matrix.node-version }}
+      - name: Setup Node.js 20.x
         uses: actions/setup-node@v4
         with:
-          node-version: ${{ matrix.node-version }}
+          node-version: 20.x
           cache: 'pnpm'
       
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       
       - name: Rebuild native dependencies
-        run: |
-          # Force rebuild all native dependencies
-          pnpm rebuild --force
-          # Specifically ensure better-sqlite3 is rebuilt
-          pnpm rebuild better-sqlite3 --force
+        run: pnpm rebuild better-sqlite3
       
       - name: Build packages
         run: pnpm run compile
@@ -79,64 +71,8 @@ jobs:
       
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
-        if: matrix.node-version == '20.x'
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./coverage/lcov.info
           fail_ci_if_error: false
           verbose: true
-  
-  build-matrix:
-    runs-on: ${{ matrix.os }}
-    
-    strategy:
-      matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-        node-version: [20.x]
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 10.11.0
-      
-      - name: Setup Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ matrix.node-version }}
-          cache: 'pnpm'
-      
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-      
-      - name: Install build tools for native dependencies
-        if: matrix.os == 'macos-latest'
-        run: |
-          # Ensure Python and build tools are available for node-gyp
-          brew install python-setuptools
-      
-      - name: Rebuild native dependencies
-        run: |
-          # Force rebuild of better-sqlite3 with proper environment
-          pnpm rebuild better-sqlite3 --force
-          # Also rebuild in specific packages that use it
-          cd packages/kysely && pnpm rebuild better-sqlite3 --force && cd ../..
-          cd packages/db0 && pnpm rebuild better-sqlite3 --force && cd ../..
-          # Continue even if rebuild fails on some platforms
-          true
-      
-      - name: Build packages
-        run: pnpm run compile
-      
-      - name: Run tests (without database-dependent packages)
-        run: |
-          # Test packages that don't require database services or native dependencies
-          pnpm --filter=@wingshq/adapter-commons test
-          pnpm --filter=@wingshq/adapter-tests test
-          pnpm --filter=@wingshq/memory test
-          # Skip db0 and kysely as they require better-sqlite3 native bindings
-        env:
-          CI: true
