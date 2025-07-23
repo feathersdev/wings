@@ -214,12 +214,34 @@ export class MongodbAdapter<
   async aggregateRaw(params?: Params) {
     const model = await this.getModel(params)
     const pipeline = params?.pipeline || []
-    const index = pipeline.findIndex((stage: Document) => stage.$feathers || stage.$wings)
-    const before = index >= 0 ? pipeline.slice(0, index) : []
-    const feathersPipeline = this.makeFeathersPipeline(params)
-    const after = index >= 0 ? pipeline.slice(index + 1) : pipeline
 
-    return model.aggregate([...before, ...feathersPipeline, ...after])
+    // Build the final pipeline
+    const finalPipeline: Document[] = []
+    let feathersPipelineInserted = false
+
+    for (let i = 0; i < pipeline.length; i++) {
+      const stage = pipeline[i]
+
+      // Skip all $feathers and $wings stages
+      if (stage.$feathers || stage.$wings) {
+        // Insert feathers pipeline at the first occurrence only
+        if (!feathersPipelineInserted) {
+          finalPipeline.push(...this.makeFeathersPipeline(params))
+          feathersPipelineInserted = true
+        }
+        continue
+      }
+
+      finalPipeline.push(stage)
+    }
+
+    // If no $feathers or $wings stage was found, prepend the feathers pipeline
+    if (!feathersPipelineInserted) {
+      const feathersPipeline = this.makeFeathersPipeline(params)
+      return model.aggregate([...feathersPipeline, ...finalPipeline])
+    }
+
+    return model.aggregate(finalPipeline)
   }
 
   // Creates the pipeline stages for Wings/Feathers query parameters
