@@ -1,93 +1,1016 @@
 # @wingshq/db0
 
-FeathersJS db0 integration - A Wings adapter for [db0](https://db0.unjs.io/), providing universal database connectivity with support for Cloudflare Durable Objects and other SQL databases.
+[![CI](https://github.com/wingshq/wings/workflows/CI/badge.svg)](https://github.com/wingshq/wings/actions?query=workflow%3ACI)
+[![npm version](https://img.shields.io/npm/v/@wingshq/db0.svg)](https://www.npmjs.com/package/@wingshq/db0)
+[![Downloads](https://img.shields.io/npm/dm/@wingshq/db0.svg)](https://www.npmjs.com/package/@wingshq/db0)
+[![License](https://img.shields.io/npm/l/@wingshq/db0.svg)](https://github.com/wingshq/wings/blob/main/LICENSE)
 
-## Features
+A modern, edge-ready SQL database adapter for Wings and FeathersJS applications, built on [db0](https://db0.unjs.io/). Provides universal database connectivity with special support for Cloudflare Workers and Durable Objects.
 
-- Universal database interface following the FeathersJS service pattern
-- Support for Cloudflare Durable Objects SQL
-- Seamless integration with db0's unified API
-- TypeScript support with proper type isolation
+## Table of Contents
+
+- [Overview](#overview)
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [API Documentation](#api-documentation)
+  - [Wings Interface](#wings-interface)
+  - [FeathersJS Interface](#feathersjs-interface)
+  - [Configuration Options](#configuration-options)
+- [Query Syntax](#query-syntax)
+- [Advanced Features](#advanced-features)
+- [Error Handling](#error-handling)
+- [Migration Guide](#migration-guide)
+- [TypeScript Support](#typescript-support)
+- [Testing](#testing)
+- [Contributing](#contributing)
+- [License](#license)
+
+## Overview
+
+The db0 adapter provides a modern database adapter with support for:
+
+- ✅ **Full Wings Interface**: Modern API with null-safe returns and explicit bulk operations
+- ✅ **FeathersJS Compatibility**: Drop-in replacement for existing FeathersJS applications
+- ✅ **Edge Runtime Support**: Works in Cloudflare Workers, Vercel Edge, and other edge environments
+- ✅ **Universal Database API**: Support for SQLite, PostgreSQL, MySQL via db0
+- ✅ **Cloudflare Durable Objects**: Native SQL storage in Durable Objects
+- ✅ **Rich Query Syntax**: Including `$like`, `$ilike`, `$isNull`, and all standard operators
+- ✅ **TypeScript First**: Full TypeScript support with generics
+- ✅ **Lightweight**: Minimal dependencies, optimized for edge deployments
 
 ## Installation
 
 ```bash
-npm install @wingshq/db0
+npm install @wingshq/db0 db0
 ```
 
-## Usage
-
-### Basic Usage
-
-```typescript
-import { Db0Service } from '@wingshq/db0';
-
-const service = new Db0Service({
-  // db0 configuration
-});
+```bash
+yarn add @wingshq/db0 db0
 ```
 
-### Cloudflare Worker Integration
+```bash
+pnpm add @wingshq/db0 db0
+```
+
+You'll also need to install the appropriate database connector:
+
+```bash
+# For SQLite
+npm install better-sqlite3
+
+# For PostgreSQL (via Cloudflare Workers)
+npm install @cloudflare/workers-types
+
+# For LibSQL/Turso
+npm install @libsql/client
+
+# For PlanetScale
+npm install @planetscale/database
+```
+
+## Quick Start
+
+### Wings Interface
 
 ```typescript
-import { Db0CloudflareService } from '@wingshq/db0/cloudflare';
+import { Db0Service } from '@wingshq/db0'
+import { createDatabase } from 'db0'
+import sqlite from 'db0/connectors/better-sqlite3'
 
-export default {
-  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
-    const service = new Db0CloudflareService({
-      // Cloudflare-specific configuration
-    });
-    
-    // Use the service following FeathersJS patterns
-    return new Response('OK');
+interface User {
+  id: number
+  name: string
+  email: string
+  role: string
+  createdAt: string
+}
+
+// Create database connection
+const db = createDatabase(
+  sqlite({
+    name: 'myapp.db'
+  })
+)
+
+// Create service instance
+const users = new Db0Service<User>({
+  db,
+  table: 'users',
+  idField: 'id',
+  dialect: 'sqlite'
+})
+
+// Create a user
+const user = await users.create({
+  name: 'Alice Johnson',
+  email: 'alice@example.com',
+  role: 'admin',
+  createdAt: new Date().toISOString()
+})
+
+// Find users with pagination
+const result = await users.find({
+  query: {
+    role: 'admin',
+    $sort: { createdAt: -1 },
+    $limit: 10
+  },
+  paginate: true
+})
+console.log(result.data) // Array of users
+console.log(result.total) // Total count
+```
+
+### FeathersJS Interface
+
+```typescript
+import { FeathersDb0Service } from '@wingshq/db0/feathers'
+import { createDatabase } from 'db0'
+import sqlite from 'db0/connectors/better-sqlite3'
+
+// Drop-in replacement for SQL FeathersJS adapters
+const db = createDatabase(
+  sqlite({
+    name: 'myapp.db'
+  })
+)
+
+const users = new FeathersDb0Service({
+  db,
+  table: 'users',
+  paginate: {
+    default: 10,
+    max: 50
   }
-};
+})
+
+// FeathersJS-style pagination (always returns paginated results)
+const result = await users.find({
+  query: {
+    $sort: { createdAt: -1 }
+  }
+})
+// Returns: { total: number, limit: number, skip: number, data: User[] }
 ```
 
-## Development
+### Cloudflare Workers & Durable Objects
 
-This package includes Cloudflare Worker testing capabilities for development purposes.
+```typescript
+import { Db0Service } from '@wingshq/db0'
+import { createDatabase } from 'db0'
+import durableObjectSql from '@wingshq/db0/cloudflare'
 
-### Available Scripts
+export class UserDurableObject implements DurableObject {
+  private service: Db0Service<User>
 
-- `npm test` - Run tests
-- `npm run test:watch` - Run tests in watch mode
-- `npm run cf:dev` - Start Cloudflare Worker development server
-- `npm run cf:deploy` - Deploy worker to Cloudflare
-- `npm run cf:typegen` - Generate Cloudflare Worker TypeScript types
+  constructor(state: DurableObjectState) {
+    const db = createDatabase(
+      durableObjectSql({ sql: state.storage.sql })
+    )
+    
+    this.service = new Db0Service<User>({
+      db,
+      table: 'users',
+      dialect: 'sqlite'
+    })
+  }
 
-### Cloudflare Worker Testing
+  async fetch(request: Request): Promise<Response> {
+    const url = new URL(request.url)
+    
+    if (url.pathname === '/users' && request.method === 'GET') {
+      const users = await this.service.find()
+      return Response.json(users)
+    }
+    
+    if (url.pathname === '/users' && request.method === 'POST') {
+      const data = await request.json()
+      const user = await this.service.create(data)
+      return Response.json(user)
+    }
+    
+    return new Response('Not Found', { status: 404 })
+  }
+}
+```
 
-The package includes a test Cloudflare Worker setup in `test/cf-worker/` for development and testing purposes. This setup:
+## API Documentation
 
-- Uses isolated TypeScript types that don't interfere with consuming packages
-- Generates types to `test/cf-worker/types.d.ts` (gitignored)
-- Provides a complete Durable Objects testing environment
-- Does not pollute the global type space or affect library consumers
+### Wings Interface
 
-**Important**: The Cloudflare Worker types are development-only and do not affect packages that consume this library. Users can implement their own Cloudflare Workers with their own type definitions without conflicts.
+The Wings interface provides a modern, type-safe API with explicit operations:
 
-### Type Safety
+#### Constructor Options
 
-This package maintains strict type isolation:
+```typescript
+interface Db0ServiceOptions {
+  db: Database             // db0 database instance
+  table: string           // Table name
+  idField?: string        // Primary key field (default: 'id')
+  dialect?: SqlDialect    // 'sqlite' | 'mysql' | 'postgres'
+}
+```
 
-- Internal Cloudflare Worker types are scoped to the test environment
-- Published package types do not include Cloudflare-specific globals
-- Consuming applications can use their own Cloudflare Worker configurations
+#### Methods
 
-## API
+##### find()
 
-### Methods
+```typescript
+// Return array by default
+const users = await service.find({
+  query: { active: true }
+}) // Returns: User[]
 
-All services implement the standard FeathersJS service interface:
+// Return paginated results
+const result = await service.find({
+  query: { active: true },
+  paginate: true
+}) // Returns: { total: number, limit: number, skip: number, data: User[] }
 
-- `find(params?)` - Query multiple records
-- `get(id, params?)` - Retrieve a single record
-- `create(data, params?)` - Create one or more records
-- `update(id, data, params?)` - Replace a record
-- `patch(id, data, params?)` - Update a record
-- `remove(id, params?)` - Delete a record
+// With advanced queries
+const result = await service.find({
+  query: {
+    age: { $gte: 18 },
+    email: { $like: '%@company.com' },
+    $sort: { createdAt: -1 },
+    $select: ['id', 'name', 'email']
+  }
+})
+```
+
+##### get()
+
+```typescript
+// Returns null if not found (no error thrown)
+const user = await service.get(123)
+if (user === null) {
+  console.log('User not found')
+}
+
+// With query parameters
+const user = await service.get(123, {
+  query: {
+    $select: ['id', 'name', 'email']
+  }
+})
+```
+
+##### create()
+
+```typescript
+// Create single record
+const user = await service.create({
+  name: 'Bob Smith',
+  email: 'bob@example.com'
+})
+
+// Create multiple records
+const users = await service.create([
+  { name: 'Alice', email: 'alice@example.com' },
+  { name: 'Charlie', email: 'charlie@example.com' }
+])
+
+// With RETURNING clause (gets created records)
+const user = await service.create({
+  name: 'Dave',
+  email: 'dave@example.com'
+})
+console.log(user.id) // Auto-generated ID
+```
+
+##### patch()
+
+```typescript
+// Patch single record (returns null if not found)
+const updated = await service.patch(123, {
+  status: 'active',
+  lastLogin: new Date().toISOString()
+})
+
+// Bulk patch with patchMany
+const updated = await service.patchMany(
+  { status: 'archived' },
+  { 
+    query: { 
+      lastLogin: { $lt: thirtyDaysAgo.toISOString() } 
+    },
+    allowAll: false  // Safety check required
+  }
+)
+```
+
+##### remove()
+
+```typescript
+// Remove single record (returns null if not found)
+const removed = await service.remove(123)
+
+// Bulk remove with removeMany
+const removed = await service.removeMany({
+  query: { 
+    status: 'deleted',
+    deletedAt: { $lt: sevenDaysAgo.toISOString() }
+  },
+  allowAll: false  // Safety check required
+})
+
+// Remove all records (use with caution!)
+const all = await service.removeAll()
+```
+
+### FeathersJS Interface
+
+The FeathersJS wrapper maintains full backwards compatibility:
+
+#### Key Differences
+
+- Always throws `NotFound` errors instead of returning null
+- `find()` returns paginated results by default unless `paginate: false`
+- Supports `update()` method for full record replacement
+- Bulk operations via `patch(null, data)` and `remove(null)`
+
+```typescript
+import { FeathersDb0Service } from '@wingshq/db0/feathers'
+
+const service = new FeathersDb0Service<User>({
+  db,
+  table: 'users'
+})
+
+// Always paginated by default
+const result = await service.find({}) 
+// Returns: { total, limit, skip, data }
+
+// Throws NotFound error
+try {
+  await service.get(999)
+} catch (error) {
+  console.log(error.message) // "No record found for id '999'"
+}
+
+// Update (full replacement)
+const updated = await service.update(123, {
+  name: 'New Name',
+  email: 'new@example.com',
+  role: 'user'
+})
+
+// Bulk operations (FeathersJS style)
+await service.patch(null, { archived: true }, {
+  query: { status: 'inactive' }
+})
+```
+
+### Configuration Options
+
+#### Database Connections
+
+```typescript
+// SQLite (local)
+import sqlite from 'db0/connectors/better-sqlite3'
+const db = createDatabase(
+  sqlite({
+    name: ':memory:' // or 'path/to/database.db'
+  })
+)
+
+// LibSQL/Turso (edge-ready SQLite)
+import libsql from 'db0/connectors/libsql'
+const db = createDatabase(
+  libsql({
+    url: 'libsql://your-database.turso.io',
+    authToken: 'your-auth-token'
+  })
+)
+
+// PlanetScale (serverless MySQL)
+import planetscale from 'db0/connectors/planetscale'
+const db = createDatabase(
+  planetscale({
+    url: process.env.DATABASE_URL
+  })
+)
+
+// Cloudflare D1
+import d1 from 'db0/connectors/cloudflare-d1'
+const db = createDatabase(
+  d1(env.DB) // env.DB is your D1 database binding
+)
+```
+
+#### Custom Configuration
+
+```typescript
+const service = new Db0Service({
+  db,
+  table: 'users',
+  idField: 'uuid',        // Custom primary key
+  dialect: 'postgres'     // SQL dialect for proper quoting
+})
+```
+
+## Query Syntax
+
+### Basic Queries
+
+```typescript
+// Equality
+await service.find({ query: { status: 'active' } })
+
+// Multiple conditions (AND)
+await service.find({ 
+  query: { 
+    status: 'active',
+    age: { $gte: 18 }
+  } 
+})
+```
+
+### Comparison Operators
+
+```typescript
+// Greater than / Greater than or equal
+await service.find({ query: { age: { $gt: 21 } } })
+await service.find({ query: { age: { $gte: 21 } } })
+
+// Less than / Less than or equal
+await service.find({ query: { price: { $lt: 100 } } })
+await service.find({ query: { price: { $lte: 100 } } })
+
+// Not equal
+await service.find({ query: { status: { $ne: 'deleted' } } })
+
+// In / Not in
+await service.find({ query: { role: { $in: ['admin', 'moderator'] } } })
+await service.find({ query: { status: { $nin: ['deleted', 'banned'] } } })
+```
+
+### Text Search Operators
+
+```typescript
+// Case-sensitive pattern matching (SQL LIKE)
+await service.find({ query: { email: { $like: '%@gmail.com' } } })
+await service.find({ query: { name: { $like: 'John%' } } })
+
+// Case-insensitive pattern matching (SQL ILIKE)
+// Note: Falls back to LOWER() comparison on MySQL/SQLite
+await service.find({ query: { name: { $ilike: '%smith%' } } })
+
+// Not like
+await service.find({ query: { email: { $notlike: '%@temp-mail.%' } } })
+```
+
+### Null Handling
+
+```typescript
+// Find records where field is null
+await service.find({ query: { deletedAt: { $isNull: true } } })
+
+// Find records where field is not null
+await service.find({ query: { deletedAt: { $isNull: false } } })
+
+// Direct null comparison
+await service.find({ query: { deletedAt: null } })  // IS NULL
+await service.find({ query: { deletedAt: { $ne: null } } })  // IS NOT NULL
+```
+
+### Logical Operators
+
+```typescript
+// OR conditions
+await service.find({
+  query: {
+    $or: [
+      { status: 'active' },
+      { role: 'admin' }
+    ]
+  }
+})
+
+// AND conditions (explicit)
+await service.find({
+  query: {
+    $and: [
+      { age: { $gte: 18 } },
+      { age: { $lt: 65 } }
+    ]
+  }
+})
+
+// Complex nested conditions
+await service.find({
+  query: {
+    $or: [
+      { 
+        $and: [
+          { status: 'active' },
+          { verified: true }
+        ]
+      },
+      { role: 'admin' }
+    ]
+  }
+})
+```
+
+### Pagination and Sorting
+
+```typescript
+// Sorting
+await service.find({
+  query: {
+    $sort: { 
+      createdAt: -1,  // Descending
+      name: 1         // Ascending
+    }
+  }
+})
+
+// Pagination
+await service.find({
+  query: {
+    $limit: 20,
+    $skip: 40,  // Page 3 with 20 items per page
+    $sort: { createdAt: -1 }
+  }
+})
+
+// Field selection
+await service.find({
+  query: {
+    $select: ['id', 'name', 'email', 'createdAt']
+  }
+})
+```
+
+## Advanced Features
+
+### Edge Runtime Compatibility
+
+```typescript
+// Works in Cloudflare Workers
+export default {
+  async fetch(request: Request, env: Env): Promise<Response> {
+    const db = createDatabase(d1(env.DB))
+    const service = new Db0Service({
+      db,
+      table: 'users',
+      dialect: 'sqlite'
+    })
+    
+    const users = await service.find()
+    return Response.json(users)
+  }
+}
+
+// Works in Vercel Edge Functions
+export const config = { runtime: 'edge' }
+
+export default async function handler(request: Request) {
+  const db = createDatabase(/* your connector */)
+  const service = new Db0Service({
+    db,
+    table: 'products'
+  })
+  
+  const products = await service.find()
+  return Response.json(products)
+}
+```
+
+### Cloudflare Durable Objects
+
+```typescript
+import durableObjectSql from '@wingshq/db0/cloudflare'
+
+export class StatefulService implements DurableObject {
+  private db: Database
+  private users: Db0Service<User>
+  private sessions: Db0Service<Session>
+
+  constructor(state: DurableObjectState) {
+    // Single database for all tables
+    this.db = createDatabase(
+      durableObjectSql({ sql: state.storage.sql })
+    )
+    
+    // Multiple services sharing the same database
+    this.users = new Db0Service({
+      db: this.db,
+      table: 'users'
+    })
+    
+    this.sessions = new Db0Service({
+      db: this.db,
+      table: 'sessions'
+    })
+    
+    // Initialize schema
+    this.initSchema()
+  }
+  
+  private async initSchema() {
+    await this.db.exec(`
+      CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        email TEXT UNIQUE NOT NULL,
+        name TEXT
+      );
+      
+      CREATE TABLE IF NOT EXISTS sessions (
+        id TEXT PRIMARY KEY,
+        userId INTEGER,
+        expiresAt TEXT,
+        FOREIGN KEY (userId) REFERENCES users(id)
+      );
+    `)
+  }
+  
+  async fetch(request: Request): Promise<Response> {
+    // Your API implementation
+  }
+}
+```
+
+### Raw SQL Access
+
+```typescript
+// Execute raw queries when needed
+const results = await db.prepare(
+  'SELECT u.*, COUNT(o.id) as orderCount ' +
+  'FROM users u ' +
+  'LEFT JOIN orders o ON u.id = o.userId ' +
+  'WHERE u.createdAt > ? ' +
+  'GROUP BY u.id'
+).all(startDate)
+
+// Use with service for complex operations
+const service = new Db0Service({ db, table: 'users' })
+
+// Standard operations through service
+const activeUsers = await service.find({
+  query: { status: 'active' }
+})
+
+// Raw SQL for complex queries
+const analytics = await db.prepare(
+  'SELECT DATE(createdAt) as date, COUNT(*) as signups ' +
+  'FROM users ' +
+  'GROUP BY DATE(createdAt) ' +
+  'ORDER BY date DESC ' +
+  'LIMIT 30'
+).all()
+```
+
+### Bulk Operations Safety
+
+```typescript
+// Safety controls prevent accidental mass updates
+try {
+  await service.patchMany(
+    { status: 'archived' },
+    { query: {} }  // Empty query
+  )
+} catch (error) {
+  // Error: "patchMany: No query provided. Use allowAll:true to patch all records"
+}
+
+// Explicitly allow operations on all records
+await service.patchMany(
+  { status: 'archived' },
+  { allowAll: true }
+)
+
+// Safe bulk operation with specific query
+await service.removeMany({
+  query: { 
+    status: 'pending',
+    createdAt: { $lt: oneWeekAgo }
+  }
+})
+```
+
+## Error Handling
+
+### Wings Interface (Null Returns)
+
+```typescript
+// No errors thrown for not found
+const user = await service.get(999)
+if (user === null) {
+  // Handle not found case
+}
+
+// Validation errors
+try {
+  await service.patch(null as any, { name: 'Test' })
+} catch (error) {
+  // BadRequest: patch() requires a non-null id
+}
+
+// Database errors are wrapped
+try {
+  await service.create({ email: 'duplicate@example.com' })
+} catch (error) {
+  // GeneralError with database error details
+  console.log(error.message)
+  console.log(error.data) // Original error details
+}
+```
+
+### FeathersJS Interface (Error Throwing)
+
+```typescript
+import { NotFound, BadRequest, GeneralError } from '@feathersjs/errors'
+
+try {
+  await feathersService.get(999)
+} catch (error) {
+  if (error instanceof NotFound) {
+    console.log('User not found')
+  }
+}
+
+// Database constraint violations
+try {
+  await feathersService.create({ 
+    email: 'existing@example.com' 
+  })
+} catch (error) {
+  if (error instanceof GeneralError) {
+    // Check for specific database errors
+    const message = error.message.toLowerCase()
+    if (message.includes('unique constraint')) {
+      console.log('Email already exists')
+    }
+  }
+}
+```
+
+### Database-Agnostic Error Handling
+
+The adapter provides consistent error handling across different databases:
+
+```typescript
+// Pattern-based error detection works across SQLite, MySQL, PostgreSQL
+- Unique constraint violations
+- Foreign key constraint failures  
+- Not null constraint violations
+- Check constraint failures
+
+// Example error handling
+try {
+  await service.create({ email: 'duplicate@example.com' })
+} catch (error) {
+  if (error.message.includes('UNIQUE constraint failed')) {
+    // SQLite
+  } else if (error.message.includes('Duplicate entry')) {
+    // MySQL
+  } else if (error.code === '23505') {
+    // PostgreSQL
+  }
+}
+```
+
+## Migration Guide
+
+### From Traditional SQL Adapters
+
+```typescript
+// From @feathersjs/knex or similar
+const oldService = new KnexService({
+  Model: db,
+  name: 'users'
+})
+
+// To @wingshq/db0 (FeathersJS compatible)
+import { FeathersDb0Service } from '@wingshq/db0/feathers'
+const newService = new FeathersDb0Service({
+  db: createDatabase(/* connector */),
+  table: 'users'
+})
+```
+
+### Migrating to Wings Interface
+
+```typescript
+// FeathersJS style
+try {
+  const user = await service.get(id)
+} catch (error) {
+  if (error.name === 'NotFound') {
+    // Handle not found
+  }
+}
+
+// Wings style
+const user = await service.get(id)
+if (user === null) {
+  // Handle not found
+}
+
+// Bulk operations
+// FeathersJS style
+await service.patch(null, { archived: true }, { query })
+
+// Wings style
+await service.patchMany({ archived: true }, { query, allowAll: false })
+```
+
+### Schema Definition
+
+```typescript
+// Define your schema using db0
+await db.exec(`
+  CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    email TEXT UNIQUE NOT NULL,
+    name TEXT NOT NULL,
+    role TEXT DEFAULT 'user',
+    active INTEGER DEFAULT 1,
+    createdAt TEXT DEFAULT CURRENT_TIMESTAMP,
+    updatedAt TEXT DEFAULT CURRENT_TIMESTAMP
+  );
+  
+  CREATE INDEX idx_users_email ON users(email);
+  CREATE INDEX idx_users_active ON users(active);
+`)
+
+// Then use with the service
+const userService = new Db0Service({
+  db,
+  table: 'users',
+  dialect: 'sqlite'
+})
+```
+
+## TypeScript Support
+
+### Type-Safe Services
+
+```typescript
+interface User {
+  id: number
+  email: string
+  name: string
+  role: 'user' | 'admin' | 'moderator'
+  active: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+const users = new Db0Service<User>({
+  db,
+  table: 'users'
+})
+
+// TypeScript enforces correct types
+await users.create({
+  email: 'test@example.com',
+  name: 'Test User',
+  role: 'user',
+  active: true,
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString()
+})
+
+// Type error: role must be 'user' | 'admin' | 'moderator'
+await users.create({
+  email: 'test@example.com',
+  name: 'Test',
+  role: 'superadmin' // ❌ Type error
+})
+```
+
+### Generic Types
+
+```typescript
+// Service with custom ID type
+interface Document {
+  uuid: string
+  title: string
+  content: string
+}
+
+const docs = new Db0Service<Document>({
+  db,
+  table: 'documents',
+  idField: 'uuid'
+})
+
+// ID type is inferred correctly
+const doc = await docs.get('550e8400-e29b-41d4-a716-446655440000')
+```
+
+### Query Type Safety
+
+```typescript
+// Queries are type-checked
+await users.find({
+  query: {
+    role: { $in: ['user', 'admin'] }, // ✅ Valid roles
+    active: true,
+    createdAt: { $gte: '2024-01-01' }
+  }
+})
+
+// Return type inference
+const allUsers = await users.find()  // Type: User[]
+const paginated = await users.find({ paginate: true })  // Type: Paginated<User>
+```
+
+## Testing
+
+### Unit Testing
+
+```typescript
+import { describe, it, expect, beforeEach } from 'vitest'
+import { createDatabase } from 'db0'
+import sqlite from 'db0/connectors/better-sqlite3'
+import { Db0Service } from '@wingshq/db0'
+
+describe('UserService', () => {
+  let service: Db0Service<User>
+  
+  beforeEach(async () => {
+    // In-memory database for each test
+    const db = createDatabase(
+      sqlite({ name: ':memory:' })
+    )
+    
+    // Create schema
+    await db.exec(`
+      CREATE TABLE users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        email TEXT UNIQUE NOT NULL,
+        name TEXT
+      )
+    `)
+    
+    service = new Db0Service<User>({
+      db,
+      table: 'users'
+    })
+  })
+  
+  it('should enforce unique emails', async () => {
+    await service.create({ 
+      email: 'test@example.com', 
+      name: 'Test' 
+    })
+    
+    await expect(
+      service.create({ 
+        email: 'test@example.com', 
+        name: 'Duplicate' 
+      })
+    ).rejects.toThrow(/unique/i)
+  })
+})
+```
+
+### Integration Testing
+
+```typescript
+// Test with real database
+const db = createDatabase(
+  sqlite({ name: './test.db' })
+)
+
+// Test with edge runtime
+import { unstable_dev } from 'wrangler'
+
+const worker = await unstable_dev('src/index.ts', {
+  experimental: { disableExperimentalWarning: true }
+})
+
+const response = await worker.fetch('/api/users')
+const users = await response.json()
+```
+
+### Running Package Tests
+
+```bash
+# Run tests
+npm test
+
+# Run tests in watch mode
+npm run test:watch
+
+# Run with coverage
+npm test -- --coverage
+
+# Test Cloudflare Worker locally
+npm run cf:dev
+
+# Deploy test worker
+npm run cf:deploy
+```
+
+## Contributing
+
+See the [main contributing guide](https://github.com/wingshq/wings/blob/main/CONTRIBUTING.md) for details on how to contribute to this project.
 
 ## License
 
-[License information]
+[MIT](https://github.com/wingshq/wings/blob/main/LICENSE)

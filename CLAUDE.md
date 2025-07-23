@@ -406,3 +406,68 @@ This approach provides:
 - **Clean Migration Path**: Users can migrate from FeathersJS adapters to Wings wrappers with zero code changes
 - **Performance Options**: Advanced users can opt into Wings interface for better performance
 - **Ecosystem Compatibility**: Existing FeathersJS tooling and documentation remains valid
+
+## Adapter Documentation Standards
+
+All adapter packages must include a comprehensive README.md file following this template:
+
+### README.md Structure
+
+1. **Header**: Package name and description
+2. **Badges**: CI status, npm version, downloads, license
+3. **Table of Contents**
+4. **Overview**: Brief description and key features
+5. **Installation**: Package manager commands
+6. **Quick Start**: Minimal working example
+7. **API Documentation**:
+   - Wings Interface (if applicable)
+   - FeathersJS Interface (if applicable)
+   - Configuration options
+   - Method signatures and examples
+8. **Query Syntax**: Supported query operators with examples
+9. **Database-Specific Features** (if applicable)
+10. **Error Handling**: Common errors and solutions
+11. **Migration Guide**: From other adapters or versions
+12. **TypeScript Support**: Type definitions and examples
+13. **Testing**: How to run tests
+14. **Contributing**: Link to main contributing guide
+15. **License**: MIT
+
+### Documentation Guidelines
+
+- **Code Examples**: Every feature should have a working code example
+- **TypeScript First**: Show TypeScript examples by default, JavaScript as secondary
+- **Real-World Use Cases**: Include practical examples beyond basic CRUD
+- **Performance Tips**: Document any performance considerations
+- **Compatibility Notes**: Clearly state which databases/versions are supported
+- **Error Examples**: Show common errors and how to handle them
+- **Query Examples**: Comprehensive examples of all supported query operators
+
+### Example Code Block Format
+
+```typescript
+// TypeScript
+import { MemoryAdapter } from '@wingshq/memory'
+import type { Person } from './types'
+
+const adapter = new MemoryAdapter<Person>({
+  id: 'id',
+  startId: 1
+})
+
+// Example usage
+const person = await adapter.create({
+  name: 'Alice',
+  age: 30
+})
+```
+
+```javascript
+// JavaScript
+const { MemoryAdapter } = require('@wingshq/memory')
+
+const adapter = new MemoryAdapter({
+  id: 'id',
+  startId: 1
+})
+```
