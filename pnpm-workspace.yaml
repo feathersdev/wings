@@ -1,3 +1,5 @@
 packages:
-  - 'packages/*'
-  - 'docs/'
+  - packages/*
+  - docs/
+ignoredBuiltDependencies:
+  - better-sqlite3

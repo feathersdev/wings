@@ -11,6 +11,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Run tests without coverage**: `npm run test:node`
 - **Lint code**: `npm run lint` (runs both Prettier and ESLint)
 - **Generate new adapter**: `npm run generate:adapter`
+  - Interactive mode: `npm run generate:adapter` (will prompt for name and description)
+  - Command-line mode: `pinion run generators/adapter.ts <name> <description>`
+  - Example: `pinion run generators/adapter.ts kysely "A high-performance SQL query builder adapter"`
+  - **IMPORTANT**: When running the generator programmatically, always use command-line arguments to avoid interactive prompts
 
 ### Package-specific commands
 

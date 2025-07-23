@@ -10,20 +10,33 @@ export interface AdapterContext extends PinionContext {
 
 export const generate = (context: AdapterContext) =>
   generator(context)
-    .then(
-      prompt<AdapterContext>([
-        {
-          type: 'input',
-          name: 'name',
-          message: 'What is the name of the adapter?'
-        },
-        {
-          type: 'input',
-          name: 'description',
-          message: 'Write a short description'
+    .then(async (ctx) => {
+      // Check if arguments were provided via command line
+      const args = process.argv.slice(2)
+      
+      if (args.length >= 2) {
+        // Use command line arguments
+        return {
+          ...ctx,
+          name: args[0],
+          description: args.slice(1).join(' ')
         }
-      ])
-    )
+      } else {
+        // Interactive prompts
+        return prompt<AdapterContext>([
+          {
+            type: 'input',
+            name: 'name',
+            message: 'What is the name of the adapter?'
+          },
+          {
+            type: 'input',
+            name: 'description',
+            message: 'Write a short description'
+          }
+        ])(ctx)
+      }
+    })
     .then((ctx) => {
       return {
         ...ctx,
