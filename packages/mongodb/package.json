@@ -38,9 +38,10 @@
   "types": "./src/index.ts",
   "exports": {
     ".": {
+      "types": "./src/index.ts",
+      "development": "./src/index.ts",
       "import": "./esm/index.js",
-      "require": "./lib/index.js",
-      "types": "./src/index.ts"
+      "require": "./lib/index.js"
     }
   },
   "scripts": {

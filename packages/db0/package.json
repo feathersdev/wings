@@ -7,11 +7,13 @@
   "exports": {
     ".": {
       "types": "./src/index.ts",
+      "development": "./src/index.ts",
       "import": "./esm/index.js",
       "require": "./lib/index.js"
     },
     "./feathers": {
       "types": "./src/feathers.ts",
+      "development": "./src/feathers.ts",
       "import": "./esm/feathers.js",
       "require": "./lib/feathers.js"
     },
