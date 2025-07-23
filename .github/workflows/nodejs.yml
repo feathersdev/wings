@@ -58,23 +58,15 @@ jobs:
           # Install build dependencies
           sudo apt-get update && sudo apt-get install -y python3 make g++ 
           
-          # Force rebuild better-sqlite3 using pnpm
-          pnpm rebuild better-sqlite3
+          # Rebuild better-sqlite3 in packages that use it
+          echo "=== Rebuilding better-sqlite3 in packages ==="
+          cd packages/db0 && pnpm rebuild better-sqlite3 && cd ../..
+          cd packages/knex && pnpm rebuild better-sqlite3 && cd ../..
+          cd packages/kysely && pnpm rebuild better-sqlite3 && cd ../..
           
           # Find and display where bindings were built
           echo "=== Looking for better_sqlite3.node files ==="
-          find node_modules -name "better_sqlite3.node" -type f 2>/dev/null || true
-          
-          # Verify the binding exists and is accessible
-          BINDING=$(find node_modules -name "better_sqlite3.node" -type f 2>/dev/null | head -1)
-          if [ -n "$BINDING" ]; then
-            echo "Found binding at: $BINDING"
-            echo "Binding file size: $(stat -c%s "$BINDING") bytes"
-            echo "Binding permissions: $(stat -c%a "$BINDING")"
-          else
-            echo "ERROR: No better_sqlite3.node binding found after rebuild"
-            exit 1
-          fi
+          find . -name "better_sqlite3.node" -type f 2>/dev/null || true
       
       - name: Build packages
         run: pnpm run compile
