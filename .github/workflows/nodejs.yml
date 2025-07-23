@@ -51,10 +51,11 @@ jobs:
           cache: 'pnpm'
       
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-      
-      - name: Rebuild native dependencies
-        run: pnpm rebuild better-sqlite3
+        run: |
+          # Install with hoisted node_modules for native module compatibility
+          pnpm install --frozen-lockfile
+          # Rebuild native modules after installation
+          pnpm rebuild
       
       - name: Build packages
         run: pnpm run compile
