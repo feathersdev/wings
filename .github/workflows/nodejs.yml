@@ -52,6 +52,38 @@ jobs:
       
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+        
+      - name: Setup better-sqlite3 bindings
+        run: |
+          # Install build dependencies
+          sudo apt-get update && sudo apt-get install -y python3 make g++ 
+          
+          # Force rebuild better-sqlite3 in the root
+          npm rebuild better-sqlite3
+          
+          # Find and display where bindings were built
+          echo "=== Looking for better_sqlite3.node files ==="
+          find node_modules -name "better_sqlite3.node" -type f 2>/dev/null || true
+          
+          # Create symlinks in expected locations
+          BINDING=$(find node_modules -name "better_sqlite3.node" -type f 2>/dev/null | head -1)
+          if [ -n "$BINDING" ]; then
+            echo "Found binding at: $BINDING"
+            # Get Node version for path
+            NODE_VERSION=$(node -p "process.versions.modules")
+            ARCH=$(node -p "process.arch")
+            PLATFORM=$(node -p "process.platform")
+            
+            # Create expected directory structure
+            mkdir -p "node_modules/better-sqlite3/lib/binding/node-v${NODE_VERSION}-${PLATFORM}-${ARCH}"
+            
+            # Copy binding to expected location
+            cp "$BINDING" "node_modules/better-sqlite3/lib/binding/node-v${NODE_VERSION}-${PLATFORM}-${ARCH}/better_sqlite3.node"
+            
+            # Also copy to build/Release for good measure
+            mkdir -p node_modules/better-sqlite3/build/Release
+            cp "$BINDING" node_modules/better-sqlite3/build/Release/better_sqlite3.node
+          fi
       
       - name: Build packages
         run: pnpm run compile
@@ -59,15 +91,16 @@ jobs:
       - name: Run linter
         run: pnpm run lint
       
-      - name: Run tests (excluding packages with native dependencies)
+      - name: Run tests
         run: |
-          # Run tests for packages without native dependencies
+          # Run tests for all packages
           pnpm --filter=@wingshq/adapter-commons test
           pnpm --filter=@wingshq/adapter-tests test  
           pnpm --filter=@wingshq/memory test
           pnpm --filter=@wingshq/knex test
           pnpm --filter=@wingshq/mongodb test
-          # Skip db0 and kysely due to better-sqlite3 issues
+          pnpm --filter=@wingshq/db0 test
+          pnpm --filter=@wingshq/kysely test
         env:
           CI: true
           TEST_DB: postgres
