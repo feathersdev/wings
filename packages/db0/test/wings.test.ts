@@ -1,6 +1,6 @@
 import { describe, beforeAll, afterAll } from 'vitest'
 import { createDatabase } from 'db0'
-import sqlite from 'db0/connectors/node-sqlite'
+import sqlite from 'db0/connectors/better-sqlite3'
 import { Db0Service } from '../src/service.js'
 import { errorHandler } from '../src/error-handler.js'
 import { fullWingsTests, WINGS_CONFIG } from '@wingshq/adapter-tests'
