@@ -109,12 +109,21 @@ jobs:
         run: pnpm install --frozen-lockfile
       
       - name: Rebuild native dependencies
-        run: pnpm rebuild better-sqlite3 || true
+        run: |
+          # Rebuild better-sqlite3 for Kysely adapter
+          cd packages/kysely && pnpm rebuild better-sqlite3 && cd ../..
+          # Continue even if rebuild fails on some platforms
+          true
       
       - name: Build packages
         run: pnpm run compile
       
-      - name: Run tests (without services)
-        run: pnpm test -- --exclude="**/knex/**" --exclude="**/mongodb/**" --exclude="**/kysely/**"
+      - name: Run tests (without database-dependent packages)
+        run: |
+          # Test packages that don't require database services
+          pnpm --filter=@wingshq/adapter-commons test
+          pnpm --filter=@wingshq/adapter-tests test
+          pnpm --filter=@wingshq/memory test
+          pnpm --filter=@wingshq/db0 test
         env:
           CI: true
