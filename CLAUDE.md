@@ -160,6 +160,20 @@ All packages support dual CommonJS/ESM:
 - CommonJS: `lib/` (compiled)
 - ESM: `esm/` (compiled)
 
+**IMPORTANT**: All packages must include a `compile` script in their `package.json` that builds both CommonJS and ESM outputs:
+
+```json
+{
+  "scripts": {
+    "compile": "npm run compile:lib && npm run compile:esm",
+    "compile:lib": "shx rm -rf lib/ && tsc --module commonjs",
+    "compile:esm": "shx rm -rf esm/ && tsc --module es2020 --outDir esm"
+  }
+}
+```
+
+This ensures consistent build processes across all packages in the monorepo.
+
 ## Development Tasks
 
 The following tasks need to be completed to fully migrate the repository to the new Wings adapter interface:

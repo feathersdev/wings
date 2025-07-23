@@ -121,6 +121,7 @@ export class Db0Service<RT extends DbRecord> {
       return this.db.prepare(sql).all(...values)
     } catch (error) {
       errorHandler(error)
+      throw error // This will never be reached because errorHandler always throws
     }
   }
 
@@ -232,11 +233,11 @@ export class Db0Service<RT extends DbRecord> {
       if (field === '$or' && Array.isArray(value)) {
         const orParts = value.map((sub) => this.buildWhere(sub))
         clauses.push(`(${orParts.map((p) => p.sql).join(' OR ')})`)
-        vals.push(...orParts.flatMap((p) => p.vals))
+        vals.push(...orParts.flatMap((p: { sql: string; vals: Primitive[] }) => p.vals))
       } else if (field === '$and' && Array.isArray(value)) {
         const andParts = value.map((sub) => this.buildWhere(sub))
         clauses.push(`(${andParts.map((p) => p.sql).join(' AND ')})`)
-        vals.push(...andParts.flatMap((p) => p.vals))
+        vals.push(...andParts.flatMap((p: { sql: string; vals: Primitive[] }) => p.vals))
       } else if (field.startsWith('$')) {
         // skip, already handled
         continue
@@ -362,11 +363,11 @@ export class Db0Service<RT extends DbRecord> {
   private async createMany(data: Array<Record<string, Primitive>>): Promise<RT[]> {
     if (!data.length) return []
     const fields = Array.from(new Set(data.flatMap(Object.keys)))
-    const columns = fields.map((f) => Db0Service.quoteId(f, this.dialect)).join(', ')
+    const columns = fields.map((f: string) => Db0Service.quoteId(f, this.dialect)).join(', ')
 
     // For each row, ensure every field is present, fill missing with null
     const rowPlaceholders = data.map(() => `(${fields.map(() => '?').join(', ')})`).join(', ')
-    const allValues = data.flatMap((row) => fields.map((f) => this.convertValue(row[f] ?? null)))
+    const allValues = data.flatMap((row: Record<string, Primitive>) => fields.map((f: string) => this.convertValue(row[f] ?? null)))
 
     const sql = `INSERT INTO ${Db0Service.quoteId(
       this.table,

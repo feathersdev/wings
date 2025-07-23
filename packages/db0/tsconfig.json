@@ -1,18 +1,21 @@
 {
   "extends": "../../tsconfig.json",
   "compilerOptions": {
-    "outDir": "dist",
+    "target": "es2022",
+    "lib": ["es2022"],
+    "outDir": "lib",
     "module": "esnext",
-    "moduleResolution": "bundler",
-    "allowImportingTsExtensions": true,
-    "noEmit": true
+    "moduleResolution": "node",
+    "allowImportingTsExtensions": false,
+    "noEmit": false
   },
   "include": [
-    "src/**/*.ts",
-    "test/**/*.ts"
+    "src/**/*.ts"
   ],
   "exclude": [
     "node_modules",
-    "dist"
+    "lib",
+    "esm",
+    "test"
   ]
 }

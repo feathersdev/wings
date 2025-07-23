@@ -1,6 +1,19 @@
 // Types will be available through wrangler configuration
 import type { Connector, Primitive } from 'db0'
 
+// Cloudflare SQL Storage types
+type SqlStorageValue = ArrayBuffer | string | number | null
+
+declare abstract class SqlStorageCursor<T extends Record<string, SqlStorageValue>> {
+  next(): { done: boolean; value?: T } | Promise<{ done: boolean; value?: T }>
+  toArray(): T[]
+  one(): T
+  raw<U extends SqlStorageValue[]>(): IterableIterator<U>
+  columnNames: string[]
+  get rowsRead(): number
+  get rowsWritten(): number
+}
+
 export interface SqlStorageCursorWithMeta<
   T extends Record<string, SqlStorageValue> = Record<string, SqlStorageValue>
 > extends SqlStorageCursor<T> {
