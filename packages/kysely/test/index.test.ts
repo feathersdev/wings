@@ -1,5 +1,12 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { fullWingsTests, fullFeathersTests, TestConfig, Person, ServiceFactory } from '@wingshq/adapter-tests'
+import {
+  fullWingsTests,
+  fullFeathersTests,
+  Person,
+  ServiceFactory,
+  WINGS_CONFIG,
+  FEATHERS_CONFIG
+} from '@wingshq/adapter-tests'
 import { Kysely } from 'kysely'
 import { SqliteDialect } from 'kysely'
 import Database from 'better-sqlite3'
@@ -17,36 +24,8 @@ interface TestDatabase {
   people: ExtendedPerson
 }
 
-// Test configuration
-const WINGS_CONFIG: TestConfig = {
-  adapterType: 'wings',
-  excludeTests: [],
-  throwOnNotFound: false,
-  alwaysPaginate: false,
-  supportsLike: true,
-  supportsIlike: true,
-  supportsIsNull: true,
-  supportsBulkViaNull: false,
-  supportsPatchMany: true,
-  supportsRemoveMany: true,
-  supportsRemoveAll: true,
-  supportsUpdate: false
-}
-
-const FEATHERS_CONFIG: TestConfig = {
-  adapterType: 'feathers',
-  excludeTests: [],
-  throwOnNotFound: true,
-  alwaysPaginate: true,
-  supportsLike: true,
-  supportsIlike: true,
-  supportsIsNull: true,
-  supportsBulkViaNull: true,
-  supportsPatchMany: false,
-  supportsRemoveMany: false,
-  supportsRemoveAll: false,
-  supportsUpdate: true
-}
+// Use predefined configurations from adapter-tests package
+// WINGS_CONFIG and FEATHERS_CONFIG are imported above
 
 // Helper to create database and table
 async function createDatabase(): Promise<Kysely<TestDatabase>> {
@@ -145,14 +124,14 @@ describe('Kysely Adapter Tests', () => {
 
       await db.transaction().execute(async (trx) => {
         // Create records in transaction
-        const created1 = await adapter.create(person1, { transaction: trx })
-        const created2 = await adapter.create(person2, { transaction: trx })
+        const created1 = await adapter.create(person1, { transaction: trx as any })
+        const created2 = await adapter.create(person2, { transaction: trx as any })
 
         expect(created1.name).toBe('Alice')
         expect(created2.name).toBe('Bob')
 
         // Find in transaction
-        const found = await adapter.find({ transaction: trx })
+        const found = await adapter.find({ transaction: trx as any })
         expect(found).toHaveLength(2)
       })
 

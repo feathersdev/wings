@@ -58,31 +58,22 @@ jobs:
           # Install build dependencies
           sudo apt-get update && sudo apt-get install -y python3 make g++ 
           
-          # Force rebuild better-sqlite3 in the root
-          npm rebuild better-sqlite3
+          # Force rebuild better-sqlite3 using pnpm
+          pnpm rebuild better-sqlite3
           
           # Find and display where bindings were built
           echo "=== Looking for better_sqlite3.node files ==="
           find node_modules -name "better_sqlite3.node" -type f 2>/dev/null || true
           
-          # Create symlinks in expected locations
+          # Verify the binding exists and is accessible
           BINDING=$(find node_modules -name "better_sqlite3.node" -type f 2>/dev/null | head -1)
           if [ -n "$BINDING" ]; then
             echo "Found binding at: $BINDING"
-            # Get Node version for path
-            NODE_VERSION=$(node -p "process.versions.modules")
-            ARCH=$(node -p "process.arch")
-            PLATFORM=$(node -p "process.platform")
-            
-            # Create expected directory structure
-            mkdir -p "node_modules/better-sqlite3/lib/binding/node-v${NODE_VERSION}-${PLATFORM}-${ARCH}"
-            
-            # Copy binding to expected location
-            cp "$BINDING" "node_modules/better-sqlite3/lib/binding/node-v${NODE_VERSION}-${PLATFORM}-${ARCH}/better_sqlite3.node"
-            
-            # Also copy to build/Release for good measure
-            mkdir -p node_modules/better-sqlite3/build/Release
-            cp "$BINDING" node_modules/better-sqlite3/build/Release/better_sqlite3.node
+            echo "Binding file size: $(stat -c%s "$BINDING") bytes"
+            echo "Binding permissions: $(stat -c%a "$BINDING")"
+          else
+            echo "ERROR: No better_sqlite3.node binding found after rebuild"
+            exit 1
           fi
       
       - name: Build packages

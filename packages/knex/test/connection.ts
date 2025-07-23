@@ -24,7 +24,7 @@ export const connection = (DB: string, testName?: string) => {
   }
 
   return {
-    client: 'sqlite3',
+    client: 'better-sqlite3',
     connection: {
       filename: testName ? `./db-${testName}.sqlite` : './db.sqlite'
     },

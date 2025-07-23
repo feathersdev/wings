@@ -155,9 +155,6 @@ importers:
       shx:
         specifier: ^0.3.4
         version: 0.3.4
-      sqlite3:
-        specifier: ^5.1.7
-        version: 5.1.7
       typescript:
         specifier: ^5.8.3
         version: 5.8.3
@@ -184,7 +181,7 @@ importers:
         version: link:../adapter-commons
       knex:
         specifier: ^3.0.1
-        version: 3.1.0(pg@8.16.3)(sqlite3@5.1.7)
+        version: 3.1.0(better-sqlite3@11.10.0)(pg@8.16.3)(sqlite3@5.1.7)
     devDependencies:
       '@eslint/js':
         specifier: ^9.31.0
@@ -198,6 +195,9 @@ importers:
       '@wingshq/adapter-tests':
         specifier: workspace:*
         version: link:../adapter-tests
+      better-sqlite3:
+        specifier: ^11.10.0
+        version: 11.10.0
       eslint:
         specifier: ^9.31.0
         version: 9.31.0
@@ -8986,7 +8986,7 @@ snapshots:
 
   kleur@4.1.5: {}
 
-  knex@3.1.0(pg@8.16.3)(sqlite3@5.1.7):
+  knex@3.1.0(better-sqlite3@11.10.0)(pg@8.16.3)(sqlite3@5.1.7):
     dependencies:
       colorette: 2.0.19
       commander: 10.0.1
@@ -9003,6 +9003,7 @@ snapshots:
       tarn: 3.0.2
       tildify: 2.0.0
     optionalDependencies:
+      better-sqlite3: 11.10.0
       pg: 8.16.3
       sqlite3: 5.1.7
     transitivePeerDependencies:

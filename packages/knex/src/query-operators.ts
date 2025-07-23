@@ -41,7 +41,7 @@ export function handleSpecialOperators(
 function handleIlikeOperator(builder: Knex.QueryBuilder, column: string, value: any): Knex.QueryBuilder {
   const dbClient = builder.client.driverName
 
-  if (dbClient === 'sqlite3') {
+  if (dbClient === 'sqlite3' || dbClient === 'better-sqlite3') {
     // SQLite doesn't support ILIKE, use LIKE with UPPER()
     return builder.whereRaw(`UPPER(${column}) LIKE UPPER(?)`, [value])
   } else if (dbClient === 'mysql' || dbClient === 'mysql2') {

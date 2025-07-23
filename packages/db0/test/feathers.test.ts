@@ -3,7 +3,7 @@ import { service } from '../src/feathers.js'
 import { commonTests, feathersTests, FEATHERS_CONFIG } from '@wingshq/adapter-tests'
 import { errorHandler } from '../src/error-handler.js'
 import { createDatabase } from 'db0'
-import sqlite from 'db0/connectors/sqlite3'
+import sqlite from 'db0/connectors/better-sqlite3'
 
 describe('db0 FeathersJS adapter', () => {
   const createService = () => {
