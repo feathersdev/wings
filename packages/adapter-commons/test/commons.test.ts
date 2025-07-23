@@ -1,5 +1,4 @@
-import { describe, it } from 'node:test'
-import assert from 'assert'
+import { describe, it, expect } from 'vitest'
 import { select } from '../src'
 
 describe('@feathersjs/adapter-commons', () => {
@@ -16,7 +15,7 @@ describe('@feathersjs/adapter-commons', () => {
       })
         .then(selector)
         .then((result) =>
-          assert.deepStrictEqual(result, {
+          expect(result).toEqual({
             name: 'David',
             age: 3
           })
@@ -42,7 +41,7 @@ describe('@feathersjs/adapter-commons', () => {
       ])
         .then(selector)
         .then((result) =>
-          assert.deepStrictEqual(result, [
+          expect(result).toEqual([
             {
               name: 'David',
               age: 3
@@ -63,7 +62,7 @@ describe('@feathersjs/adapter-commons', () => {
 
       return Promise.resolve(data)
         .then(selector)
-        .then((result) => assert.deepStrictEqual(result, data))
+        .then((result) => expect(result).toEqual(data))
     })
 
     it('select with other fields', () => {
@@ -82,7 +81,7 @@ describe('@feathersjs/adapter-commons', () => {
       return Promise.resolve(data)
         .then(selector)
         .then((result) =>
-          assert.deepStrictEqual(result, {
+          expect(result).toEqual({
             id: 'me',
             name: 'David'
           })

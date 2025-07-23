@@ -235,7 +235,7 @@ describe('MongoDB Aggregation Tests', () => {
           { $unwind: { path: '$person' } }
         ]
       })
-      
+
       // Test the exact same query with $feathers
       const feathersResult = await todoAdapter.find({
         query: { $sort: { name: 1 } },
@@ -253,7 +253,7 @@ describe('MongoDB Aggregation Tests', () => {
           { $unwind: { path: '$person' } }
         ]
       })
-      
+
       // Both should return identical results
       expect(wingsResult).toEqual(feathersResult)
       expect(wingsResult[0].person).toEqual(bob)
@@ -264,21 +264,15 @@ describe('MongoDB Aggregation Tests', () => {
       // Test $wings at the beginning
       const wingsFirst = await todoAdapter.find({
         query: { $limit: 2, $sort: { priority: 1 } },
-        pipeline: [
-          { $wings: {} },
-          { $project: { name: 1, priority: 1 } }
-        ]
+        pipeline: [{ $wings: {} }, { $project: { name: 1, priority: 1 } }]
       })
-      
+
       // Test $feathers at the end
       const feathersLast = await todoAdapter.find({
         query: { $limit: 2, $sort: { priority: 1 } },
-        pipeline: [
-          { $project: { name: 1, priority: 1, userId: 1 } },
-          { $feathers: {} }
-        ]
+        pipeline: [{ $project: { name: 1, priority: 1, userId: 1 } }, { $feathers: {} }]
       })
-      
+
       expect(wingsFirst.length).toBe(2)
       expect(feathersLast.length).toBe(2)
       expect(wingsFirst[0].priority).toBe(1)
@@ -296,7 +290,7 @@ describe('MongoDB Aggregation Tests', () => {
           { $project: { name: 1 } }
         ]
       })
-      
+
       // Should have 2 results (Alice and Bob's dishes with priority 1)
       expect(result.length).toBe(2)
       expect(result[0].name).toBe('Alice do dishes')

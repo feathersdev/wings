@@ -1,25 +1,51 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { fullWingsTests, fullFeathersTests, TestConfig, Person, ServiceFactory } from '@wingshq/adapter-tests'
-import { Kysely, sql } from 'kysely'
+import { Kysely } from 'kysely'
 import { SqliteDialect } from 'kysely'
 import Database from 'better-sqlite3'
 import { KyselyAdapter } from '../src'
 import { FeathersKyselyAdapter } from '../src/feathers'
 
+// Extend Person type to include additional fields for tests
+interface ExtendedPerson extends Person {
+  created?: boolean
+  email?: string
+}
+
 // Create test database interface
 interface TestDatabase {
-  people: Person
+  people: ExtendedPerson
 }
 
 // Test configuration
 const WINGS_CONFIG: TestConfig = {
   adapterType: 'wings',
-  excludeTests: []
+  excludeTests: [],
+  throwOnNotFound: false,
+  alwaysPaginate: false,
+  supportsLike: true,
+  supportsIlike: true,
+  supportsIsNull: true,
+  supportsBulkViaNull: false,
+  supportsPatchMany: true,
+  supportsRemoveMany: true,
+  supportsRemoveAll: true,
+  supportsUpdate: false
 }
 
 const FEATHERS_CONFIG: TestConfig = {
   adapterType: 'feathers',
-  excludeTests: []
+  excludeTests: [],
+  throwOnNotFound: true,
+  alwaysPaginate: true,
+  supportsLike: true,
+  supportsIlike: true,
+  supportsIsNull: true,
+  supportsBulkViaNull: true,
+  supportsPatchMany: false,
+  supportsRemoveMany: false,
+  supportsRemoveAll: false,
+  supportsUpdate: true
 }
 
 // Helper to create database and table
@@ -35,7 +61,9 @@ async function createDatabase(): Promise<Kysely<TestDatabase>> {
     .createTable('people')
     .addColumn('id', 'integer', (col) => col.primaryKey().autoIncrement())
     .addColumn('name', 'text', (col) => col.notNull())
-    .addColumn('age', 'integer', (col) => col.notNull())
+    .addColumn('age', 'integer') // Allow NULL values for age
+    .addColumn('created', 'boolean', (col) => col.defaultTo(false))
+    .addColumn('email', 'text')
     .execute()
 
   return db
@@ -53,7 +81,7 @@ describe('Kysely Adapter Tests', () => {
   })
 
   describe('Wings Interface', () => {
-    let adapter: KyselyAdapter<Person>
+    let adapter: KyselyAdapter<ExtendedPerson>
 
     beforeEach(() => {
       adapter = new KyselyAdapter<Person>({
@@ -72,12 +100,12 @@ describe('Kysely Adapter Tests', () => {
       expect(adapter.dialect).toBe('sqlite')
     })
 
-    const serviceFactory: ServiceFactory<KyselyAdapter<Person>> = () => adapter
+    const serviceFactory: ServiceFactory<KyselyAdapter<ExtendedPerson>> = () => adapter
     fullWingsTests(serviceFactory, 'id', WINGS_CONFIG)
   })
 
   describe('FeathersJS Interface', () => {
-    let adapter: FeathersKyselyAdapter<Person>
+    let adapter: FeathersKyselyAdapter<ExtendedPerson>
 
     beforeEach(() => {
       adapter = new FeathersKyselyAdapter<Person>({
@@ -95,12 +123,12 @@ describe('Kysely Adapter Tests', () => {
       expect(adapter.table).toBe('people')
     })
 
-    const serviceFactory: ServiceFactory<FeathersKyselyAdapter<Person>> = () => adapter
+    const serviceFactory: ServiceFactory<FeathersKyselyAdapter<ExtendedPerson>> = () => adapter
     fullFeathersTests(serviceFactory, 'id', FEATHERS_CONFIG)
   })
 
   describe('Kysely-specific features', () => {
-    let adapter: KyselyAdapter<Person>
+    let adapter: KyselyAdapter<ExtendedPerson>
 
     beforeEach(() => {
       adapter = new KyselyAdapter<Person>({
@@ -145,22 +173,16 @@ describe('Kysely Adapter Tests', () => {
       // Complex $or query
       const result1 = await adapter.find({
         query: {
-          $or: [
-            { name: 'Alice' },
-            { age: { $gt: 30 } }
-          ]
+          $or: [{ name: 'Alice' }, { age: { $gt: 30 } }]
         }
       })
       expect(result1).toHaveLength(2)
-      expect(result1.map(p => p.name).sort()).toEqual(['Alice', 'Charlie'])
+      expect(result1.map((p) => p.name).sort()).toEqual(['Alice', 'Charlie'])
 
       // Complex $and query
       const result2 = await adapter.find({
         query: {
-          $and: [
-            { age: { $gte: 25 } },
-            { age: { $lte: 30 } }
-          ]
+          $and: [{ age: { $gte: 25 } }, { age: { $lte: 30 } }]
         }
       })
       expect(result2).toHaveLength(3)
@@ -170,17 +192,14 @@ describe('Kysely Adapter Tests', () => {
         query: {
           $or: [
             {
-              $and: [
-                { age: { $gt: 30 } },
-                { name: { $like: 'C%' } }
-              ]
+              $and: [{ age: { $gt: 30 } }, { name: { $like: 'C%' } }]
             },
             { name: 'Bob' }
           ]
         }
       })
       expect(result3).toHaveLength(2)
-      expect(result3.map(p => p.name).sort()).toEqual(['Bob', 'Charlie'])
+      expect(result3.map((p) => p.name).sort()).toEqual(['Bob', 'Charlie'])
     })
 
     it('should handle $like and $notlike operators', async () => {
@@ -206,15 +225,12 @@ describe('Kysely Adapter Tests', () => {
         }
       })
       expect(result2).toHaveLength(2)
-      expect(result2.map(p => p.name).sort()).toEqual(['Alice Johnson', 'Charlie Brown'])
+      expect(result2.map((p) => p.name).sort()).toEqual(['Alice Johnson', 'Charlie Brown'])
     })
 
     it('should handle $isNull operator', async () => {
       // Add nullable column for testing
-      await db.schema
-        .alterTable('people')
-        .addColumn('nickname', 'text')
-        .execute()
+      await db.schema.alterTable('people').addColumn('nickname', 'text').execute()
 
       interface PersonWithNickname extends Person {
         nickname?: string | null
@@ -240,7 +256,7 @@ describe('Kysely Adapter Tests', () => {
         }
       })
       expect(nullNicknames).toHaveLength(2)
-      expect(nullNicknames.map(p => p.name).sort()).toEqual(['Bob', 'Charlie'])
+      expect(nullNicknames.map((p) => p.name).sort()).toEqual(['Bob', 'Charlie'])
 
       // Find records where nickname is not null
       const notNullNicknames = await adapterWithNickname.find({

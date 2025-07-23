@@ -367,7 +367,9 @@ export class Db0Service<RT extends DbRecord> {
 
     // For each row, ensure every field is present, fill missing with null
     const rowPlaceholders = data.map(() => `(${fields.map(() => '?').join(', ')})`).join(', ')
-    const allValues = data.flatMap((row: Record<string, Primitive>) => fields.map((f: string) => this.convertValue(row[f] ?? null)))
+    const allValues = data.flatMap((row: Record<string, Primitive>) =>
+      fields.map((f: string) => this.convertValue(row[f] ?? null))
+    )
 
     const sql = `INSERT INTO ${Db0Service.quoteId(
       this.table,

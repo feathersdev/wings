@@ -40,9 +40,9 @@
   "types": "./src/index.ts",
   "exports": {
     ".": {
+      "types": "./src/index.ts",
       "import": "./esm/index.js",
-      "require": "./lib/index.js",
-      "types": "./src/index.ts"
+      "require": "./lib/index.js"
     }
   },
   "scripts": {
@@ -68,7 +68,7 @@
     "@wingshq/adapter-tests": "workspace:*",
     "@types/node": "^20.4.2",
     "shx": "^0.3.4",
-    "vitest": "^2.1.8",
+    "vitest": "^3.2.4",
     "typescript": "^5.1.6"
   },
   "gitHead": "90caf635aec850550b9d37bea2762af959d9e8d5"
