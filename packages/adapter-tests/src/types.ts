@@ -48,6 +48,9 @@ export interface TestConfig {
   supportsRemoveMany?: boolean
   supportsRemoveAll?: boolean
   supportsUpdate?: boolean
+
+  // Test data configuration
+  nonExistentId?: string | number
 }
 
 // Default configurations for different interfaces

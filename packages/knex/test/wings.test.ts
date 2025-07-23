@@ -23,9 +23,16 @@ describe('Wings Knex Adapter', () => {
     await dbSetup.cleanup()
   })
 
+  // For PostgreSQL, we need to use integer IDs for "not found" tests
+  const testConfig = {
+    ...WINGS_CONFIG,
+    // Use a large integer that won't exist instead of string IDs for PostgreSQL
+    nonExistentId: process.env.TEST_DB === 'postgres' ? 999999999 : '568225fbfe21222432e836ff'
+  }
+
   // Run the comprehensive test suites
-  commonTests(createService, 'id', WINGS_CONFIG, errorHandler)
-  wingsTests(createService, 'id')
+  commonTests(createService, 'id', testConfig, errorHandler)
+  wingsTests(createService, 'id', testConfig)
 })
 
 describe('Wings Knex Adapter with custom id', () => {
@@ -48,7 +55,14 @@ describe('Wings Knex Adapter with custom id', () => {
     await dbSetup.cleanup()
   })
 
+  // For PostgreSQL, we need to use integer IDs for "not found" tests
+  const testConfig = {
+    ...WINGS_CONFIG,
+    // Use a large integer that won't exist instead of string IDs for PostgreSQL
+    nonExistentId: process.env.TEST_DB === 'postgres' ? 999999999 : '568225fbfe21222432e836ff'
+  }
+
   // Run the comprehensive test suites
-  commonTests(createService, 'customid', WINGS_CONFIG, errorHandler)
-  wingsTests(createService, 'customid')
+  commonTests(createService, 'customid', testConfig, errorHandler)
+  wingsTests(createService, 'customid', testConfig)
 })

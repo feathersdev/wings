@@ -80,12 +80,13 @@ export function testUpdate<T extends BaseAdapter<Person>>(
         return
       }
 
+      const nonExistentId = config.nonExistentId || 'non-existent-id'
       if (config.throwOnNotFound) {
         await expect(
-          (service as any).update('non-existent-id', { name: 'Updated', age: 99 })
+          (service as any).update(nonExistentId, { name: 'Updated', age: 99 })
         ).rejects.toThrow()
       } else {
-        const result = await (service as any).update('non-existent-id', { name: 'Updated', age: 99 })
+        const result = await (service as any).update(nonExistentId, { name: 'Updated', age: 99 })
         expect(result).toBe(null)
       }
     })

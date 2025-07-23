@@ -4,7 +4,7 @@ import { FeathersAdapter, Person, TestConfig, FEATHERS_CONFIG, ServiceFactory } 
 export function testFeathersErrorHandling<T extends FeathersAdapter<Person>>(
   serviceFactory: ServiceFactory<T>,
   idProp: string,
-  _config: TestConfig = FEATHERS_CONFIG
+  config: TestConfig = FEATHERS_CONFIG
 ) {
   describe('FeathersJS Error Handling', () => {
     let service: T
@@ -25,20 +25,23 @@ export function testFeathersErrorHandling<T extends FeathersAdapter<Person>>(
     })
 
     it('get() should throw NotFound for non-existent item', async () => {
+      const nonExistentId = config.nonExistentId || 'non-existent-id'
       await expect(async () => {
-        await service.get('non-existent-id')
+        await service.get(nonExistentId)
       }).rejects.toMatchObject({ name: 'NotFound' })
     })
 
     it('patch() should throw NotFound for non-existent item', async () => {
+      const nonExistentId = config.nonExistentId || 'non-existent-id'
       await expect(async () => {
-        await service.patch('non-existent-id', { name: 'Updated' })
+        await service.patch(nonExistentId, { name: 'Updated' })
       }).rejects.toMatchObject({ name: 'NotFound' })
     })
 
     it('remove() should throw NotFound for non-existent item', async () => {
+      const nonExistentId = config.nonExistentId || 'non-existent-id'
       await expect(async () => {
-        await service.remove('non-existent-id')
+        await service.remove(nonExistentId)
       }).rejects.toMatchObject({ name: 'NotFound' })
     })
 

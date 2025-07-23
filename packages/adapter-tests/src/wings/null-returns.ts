@@ -4,7 +4,7 @@ import { WingsAdapter, Person, TestConfig, WINGS_CONFIG, ServiceFactory } from '
 export function testWingsNullReturns<T extends WingsAdapter<Person>>(
   serviceFactory: ServiceFactory<T>,
   idProp: string,
-  _config: TestConfig = WINGS_CONFIG
+  config: TestConfig = WINGS_CONFIG
 ) {
   describe('Wings Null Returns', () => {
     let service: T
@@ -25,17 +25,20 @@ export function testWingsNullReturns<T extends WingsAdapter<Person>>(
     })
 
     it('get() should return null for non-existent item', async () => {
-      const result = await service.get('non-existent-id')
+      const nonExistentId = config.nonExistentId || 'non-existent-id'
+      const result = await service.get(nonExistentId)
       expect(result).toBe(null)
     })
 
     it('patch() should return null for non-existent item', async () => {
-      const result = await service.patch('non-existent-id', { name: 'Updated' })
+      const nonExistentId = config.nonExistentId || 'non-existent-id'
+      const result = await service.patch(nonExistentId, { name: 'Updated' })
       expect(result).toBe(null)
     })
 
     it('remove() should return null for non-existent item', async () => {
-      const result = await service.remove('non-existent-id')
+      const nonExistentId = config.nonExistentId || 'non-existent-id'
+      const result = await service.remove(nonExistentId)
       expect(result).toBe(null)
     })
 

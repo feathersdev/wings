@@ -57,10 +57,11 @@ export function testPatch<T extends BaseAdapter<Person>>(
     })
 
     it('should handle not found appropriately', async () => {
+      const nonExistentId = config.nonExistentId || 'non-existent-id'
       if (config.throwOnNotFound) {
-        await expect(service.patch('non-existent-id', { name: 'Updated' })).rejects.toThrow()
+        await expect(service.patch(nonExistentId, { name: 'Updated' })).rejects.toThrow()
       } else {
-        const result = await service.patch('non-existent-id', { name: 'Updated' })
+        const result = await service.patch(nonExistentId, { name: 'Updated' })
         expect(result).toBe(null)
       }
     })

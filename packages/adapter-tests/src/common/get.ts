@@ -52,10 +52,11 @@ export function testGet<T extends BaseAdapter<Person>>(
     })
 
     it('should return appropriate result when not found', async () => {
+      const nonExistentId = config.nonExistentId || '568225fbfe21222432e836ff'
       if (config.throwOnNotFound) {
-        await expect(service.get('568225fbfe21222432e836ff')).rejects.toThrow()
+        await expect(service.get(nonExistentId)).rejects.toThrow()
       } else {
-        const result = await service.get('568225fbfe21222432e836ff')
+        const result = await service.get(nonExistentId)
         expect(result).toBe(null)
       }
     })
