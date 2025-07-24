@@ -1,27 +1,19 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
-import { MongoClient } from 'mongodb'
-import { MongoMemoryServer } from 'mongodb-memory-server'
+import { createTestDatabase, TestDatabase } from './test-utils'
 import { MongodbAdapter } from '../src'
 
 describe('MongoDB Performance and Index Tests', () => {
-  let mongod: MongoMemoryServer
-  let client: MongoClient
+  let testDb: TestDatabase
   let db: any
   let adapter: MongodbAdapter<any>
 
   beforeAll(async () => {
-    mongod = await MongoMemoryServer.create({
-      binary: {
-        version: '8.0.0'
-      }
-    })
-    client = await MongoClient.connect(mongod.getUri())
-    db = client.db('performance-test')
+    testDb = await createTestDatabase('performance-test')
+    db = testDb.client.db()
   }, 60000)
 
   afterAll(async () => {
-    await client.close()
-    await mongod.stop()
+    await testDb.cleanup()
   })
 
   describe('Index Usage', () => {

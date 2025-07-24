@@ -1,5 +1,5 @@
 import { describe, it, afterAll, beforeAll, expect } from 'vitest'
-import { MongoClient, ObjectId } from 'mongodb'
+import { ObjectId } from 'mongodb'
 import {
   commonTests,
   wingsTests,
@@ -9,13 +9,11 @@ import {
   WINGS_CONFIG,
   FEATHERS_CONFIG
 } from '@wingshq/adapter-tests'
-import { MongoMemoryServer } from 'mongodb-memory-server'
-
+import { createTestDatabase, TestDatabase } from './test-utils'
 import { MongodbAdapter, FeathersMongodbAdapter } from '../src'
 
 describe('MongoDB Adapters', () => {
-  let mongod: MongoMemoryServer
-  let client: MongoClient
+  let testDb: TestDatabase
   let db: any
   let wingsAdapter: MongodbAdapter<Person>
   let wingsCustomAdapter: MongodbAdapter<Person>
@@ -23,13 +21,8 @@ describe('MongoDB Adapters', () => {
   let feathersCustomAdapter: FeathersMongodbAdapter<Person>
 
   beforeAll(async () => {
-    mongod = await MongoMemoryServer.create({
-      binary: {
-        version: '8.0.0'
-      }
-    })
-    client = await MongoClient.connect(mongod.getUri())
-    db = client.db('feathers-test')
+    testDb = await createTestDatabase('feathers-test')
+    db = testDb.client.db()
 
     // Wings adapters
     wingsAdapter = new MongodbAdapter<Person>({
@@ -53,9 +46,7 @@ describe('MongoDB Adapters', () => {
   }, 60000)
 
   afterAll(async () => {
-    await db.dropDatabase()
-    await client.close()
-    await mongod.stop()
+    await testDb.cleanup()
   })
 
   // Wings adapter tests

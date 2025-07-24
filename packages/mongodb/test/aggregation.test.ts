@@ -1,27 +1,16 @@
 import { describe, it, afterAll, beforeAll, expect } from 'vitest'
-import { MongoClient } from 'mongodb'
 import { Person } from '@wingshq/adapter-tests'
-import { MongoMemoryServer } from 'mongodb-memory-server'
-
+import { createTestDatabase, TestDatabase } from './test-utils'
 import { MongodbAdapter } from '../src'
 
 describe('MongoDB Aggregation Tests', () => {
-  let mongod: MongoMemoryServer
-  let client: MongoClient
+  let testDb: TestDatabase
   let db: any
   let peopleAdapter: MongodbAdapter<Person>
 
   beforeAll(async () => {
-    mongod = await MongoMemoryServer.create({
-      binary: {
-        version: '8.0.0'
-      }
-    })
-    const uri = mongod.getUri()
-    client = new MongoClient(uri)
-
-    await client.connect()
-    db = client.db()
+    testDb = await createTestDatabase('aggregation-test')
+    db = testDb.client.db()
 
     peopleAdapter = new MongodbAdapter<Person>({
       Model: db.collection('people')
@@ -29,12 +18,7 @@ describe('MongoDB Aggregation Tests', () => {
   }, 60000)
 
   afterAll(async () => {
-    if (client) {
-      await client.close()
-    }
-    if (mongod) {
-      await mongod.stop()
-    }
+    await testDb?.cleanup()
   })
 
   describe('Aggregation Pipeline Support', () => {

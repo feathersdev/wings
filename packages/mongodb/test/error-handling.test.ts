@@ -1,31 +1,23 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
-import { MongoClient } from 'mongodb'
-import { MongoMemoryServer } from 'mongodb-memory-server'
 import { GeneralError } from '@feathersjs/errors'
+import { createTestDatabase, TestDatabase } from './test-utils'
 import { MongodbAdapter, errorHandler } from '../src'
 
 describe('MongoDB Error Handling', () => {
-  let mongod: MongoMemoryServer
-  let client: MongoClient
+  let testDb: TestDatabase
   let db: any
   let adapter: MongodbAdapter<{ _id: string; name: string; email?: string }>
 
   beforeAll(async () => {
-    mongod = await MongoMemoryServer.create({
-      binary: {
-        version: '8.0.0'
-      }
-    })
-    client = await MongoClient.connect(mongod.getUri())
-    db = client.db('error-test')
+    testDb = await createTestDatabase('error-test')
+    db = testDb.client.db()
     adapter = new MongodbAdapter({
       Model: db.collection('error-test')
     })
   }, 60000)
 
   afterAll(async () => {
-    await client.close()
-    await mongod.stop()
+    await testDb.cleanup()
   })
 
   describe('errorHandler', () => {
