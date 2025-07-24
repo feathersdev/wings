@@ -5,7 +5,7 @@
     "lib": ["es2022"],
     "outDir": "lib",
     "module": "esnext",
-    "moduleResolution": "bundler",
+    "moduleResolution": "node",
     "allowImportingTsExtensions": false,
     "noEmit": false
   },
