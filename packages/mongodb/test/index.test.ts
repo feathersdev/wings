@@ -23,7 +23,11 @@ describe('MongoDB Adapters', () => {
   let feathersCustomAdapter: FeathersMongodbAdapter<Person>
 
   beforeAll(async () => {
-    mongod = await MongoMemoryServer.create()
+    mongod = await MongoMemoryServer.create({
+      binary: {
+        version: '8.0.0'
+      }
+    })
     client = await MongoClient.connect(mongod.getUri())
     db = client.db('feathers-test')
 
@@ -46,7 +50,7 @@ describe('MongoDB Adapters', () => {
       id: 'customid',
       Model: db.collection('feathers-people-customid')
     })
-  })
+  }, 60000)
 
   afterAll(async () => {
     await db.dropDatabase()

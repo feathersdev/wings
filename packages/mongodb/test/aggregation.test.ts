@@ -12,7 +12,11 @@ describe('MongoDB Aggregation Tests', () => {
   let peopleAdapter: MongodbAdapter<Person>
 
   beforeAll(async () => {
-    mongod = await MongoMemoryServer.create()
+    mongod = await MongoMemoryServer.create({
+      binary: {
+        version: '8.0.0'
+      }
+    })
     const uri = mongod.getUri()
     client = new MongoClient(uri)
 
@@ -22,7 +26,7 @@ describe('MongoDB Aggregation Tests', () => {
     peopleAdapter = new MongodbAdapter<Person>({
       Model: db.collection('people')
     })
-  })
+  }, 60000)
 
   afterAll(async () => {
     if (client) {
@@ -296,5 +300,5 @@ describe('MongoDB Aggregation Tests', () => {
       expect(result[0].name).toBe('Alice do dishes')
       expect(result[1].name).toBe('Bob do dishes')
     })
-  })
+  }, 60000)
 })

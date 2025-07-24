@@ -11,13 +11,17 @@ describe('MongoDB Error Handling', () => {
   let adapter: MongodbAdapter<{ _id: string; name: string; email?: string }>
 
   beforeAll(async () => {
-    mongod = await MongoMemoryServer.create()
+    mongod = await MongoMemoryServer.create({
+      binary: {
+        version: '8.0.0'
+      }
+    })
     client = await MongoClient.connect(mongod.getUri())
     db = client.db('error-test')
     adapter = new MongodbAdapter({
       Model: db.collection('error-test')
     })
-  })
+  }, 60000)
 
   afterAll(async () => {
     await client.close()

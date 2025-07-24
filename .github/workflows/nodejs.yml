@@ -2,14 +2,14 @@ name: CI
 
 on:
   push:
-    branches: [ main, next ]
+    branches: [main, next]
   pull_request:
-    branches: [ main, next ]
+    branches: [main, next]
 
 jobs:
   test:
     runs-on: ubuntu-latest
-    
+
     services:
       postgres:
         image: postgres:16
@@ -24,9 +24,9 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
-      
+
       mongodb:
-        image: mongo:7
+        image: mongo:8
         ports:
           - 27017:27017
         options: >-
@@ -34,34 +34,34 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      
+
       - name: Install pnpm
         uses: pnpm/action-setup@v4
         with:
           version: 10.11.0
-      
+
       - name: Setup Node.js 20.x
         uses: actions/setup-node@v4
         with:
           node-version: 20.x
           cache: 'pnpm'
-      
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-        
+
       - name: Setup better-sqlite3 bindings
         run: |
           # Install build dependencies
           sudo apt-get update && sudo apt-get install -y python3 make g++ 
-          
+
           # Rebuild better-sqlite3 at workspace root first (for hoisted deps)
           echo "=== Rebuilding better-sqlite3 at workspace root ==="
           pnpm rebuild better-sqlite3
-          
+
           # Also rebuild in individual packages that have it as devDependency
           echo "=== Rebuilding better-sqlite3 in individual packages ==="
           for pkg in db0 knex kysely; do
@@ -72,21 +72,21 @@ jobs:
               cd ../..
             fi
           done
-          
+
           # Find and display where bindings were built
           echo "=== Looking for better_sqlite3.node files ==="
           find . -name "better_sqlite3.node" -type f 2>/dev/null || true
-          
+
           # Verify bindings are accessible
           echo "=== Verifying bindings accessibility ==="
           node -e "try { require('better-sqlite3'); console.log('✓ better-sqlite3 bindings OK'); } catch(e) { console.log('✗ better-sqlite3 bindings failed:', e.message); }"
-      
+
       - name: Build packages
         run: pnpm run compile
-      
+
       - name: Run linter
         run: pnpm run lint
-      
+
       - name: Run tests
         run: |
           # Run tests for all packages
@@ -101,7 +101,7 @@ jobs:
           CI: true
           TEST_DB: postgres
           NODE_OPTIONS: --experimental-vm-modules
-      
+
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
         with:

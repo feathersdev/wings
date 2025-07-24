@@ -10,10 +10,14 @@ describe('MongoDB-Specific Features', () => {
   let adapter: MongodbAdapter<any>
 
   beforeAll(async () => {
-    mongod = await MongoMemoryServer.create()
+    mongod = await MongoMemoryServer.create({
+      binary: {
+        version: '8.0.0'
+      }
+    })
     client = await MongoClient.connect(mongod.getUri())
     db = client.db('features-test')
-  })
+  }, 60000)
 
   afterAll(async () => {
     await client.close()
