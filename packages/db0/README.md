@@ -58,6 +58,9 @@ You'll also need to install the appropriate database connector:
 # For SQLite
 npm install better-sqlite3
 
+# For PostgreSQL
+npm install pg
+
 # For PostgreSQL (via Cloudflare Workers)
 npm install @cloudflare/workers-types
 
@@ -86,18 +89,31 @@ interface User {
 }
 
 // Create database connection
+// Option 1: SQLite
 const db = createDatabase(
   sqlite({
     name: 'myapp.db'
   })
 )
 
+// Option 2: PostgreSQL
+// import postgres from 'db0/connectors/postgresql'
+// const db = createDatabase(
+//   postgres({
+//     host: 'localhost',
+//     port: 5432,
+//     database: 'myapp',
+//     user: 'postgres',
+//     password: 'postgres'
+//   })
+// )
+
 // Create service instance
 const users = new Db0Service<User>({
   db,
   table: 'users',
   idField: 'id',
-  dialect: 'sqlite'
+  dialect: 'sqlite'  // or 'postgres' for PostgreSQL
 })
 
 // Create a user
@@ -374,6 +390,30 @@ const db = createDatabase(
   })
 )
 
+// PostgreSQL
+import postgres from 'db0/connectors/postgresql'
+const db = createDatabase(
+  postgres({
+    host: 'localhost',
+    port: 5432,
+    database: 'myapp',
+    user: 'postgres',
+    password: 'postgres'
+  })
+)
+
+// MySQL
+import mysql from 'db0/connectors/mysql2'
+const db = createDatabase(
+  mysql({
+    host: 'localhost',
+    port: 3306,
+    database: 'myapp',
+    user: 'root',
+    password: 'password'
+  })
+)
+
 // LibSQL/Turso (edge-ready SQLite)
 import libsql from 'db0/connectors/libsql'
 const db = createDatabase(
@@ -544,6 +584,100 @@ await service.find({
 ```
 
 ## Advanced Features
+
+### PostgreSQL Support
+
+The db0 adapter provides full PostgreSQL support with automatic dialect detection:
+
+```typescript
+import { Db0Service } from '@wingshq/db0'
+import { createDatabase } from 'db0'
+import postgres from 'db0/connectors/postgresql'
+
+// Standard PostgreSQL connection
+const db = createDatabase(
+  postgres({
+    host: 'localhost',
+    port: 5432,
+    database: 'myapp',
+    user: 'postgres',
+    password: 'postgres'
+  })
+)
+
+// Create service with PostgreSQL dialect
+const users = new Db0Service<User>({
+  db,
+  table: 'users',
+  dialect: 'postgres' // Important for proper SQL generation
+})
+
+// Connection string format
+const db = createDatabase(
+  postgres({
+    connectionString: 'postgresql://user:password@localhost:5432/myapp'
+  })
+)
+
+// SSL connection
+const db = createDatabase(
+  postgres({
+    host: 'your-database.amazonaws.com',
+    port: 5432,
+    database: 'myapp',
+    user: 'postgres',
+    password: 'postgres',
+    ssl: {
+      rejectUnauthorized: false
+    }
+  })
+)
+
+// Connection pooling
+const db = createDatabase(
+  postgres({
+    host: 'localhost',
+    port: 5432,
+    database: 'myapp',
+    user: 'postgres',
+    password: 'postgres',
+    max: 20, // Maximum pool size
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 2000
+  })
+)
+```
+
+#### PostgreSQL-Specific Features
+
+```typescript
+// Case-insensitive search with ILIKE
+const results = await users.find({
+  query: {
+    name: { $ilike: '%smith%' } // Native ILIKE support
+  }
+})
+
+// Advanced text search
+const results = await users.find({
+  query: {
+    $or: [
+      { email: { $like: '%@company.com' } },
+      { name: { $ilike: 'john%' } }
+    ]
+  }
+})
+
+// Working with PostgreSQL arrays (requires raw SQL)
+const tags = await db.prepare(
+  'SELECT * FROM posts WHERE tags && ARRAY[?]::text[]'
+).all(['javascript'])
+
+// JSON/JSONB columns (requires raw SQL)
+const results = await db.prepare(
+  "SELECT * FROM users WHERE metadata->>'role' = ?"
+).all('admin')
+```
 
 ### Edge Runtime Compatibility
 
@@ -921,35 +1055,111 @@ const paginated = await users.find({ paginate: true })  // Type: Paginated<User>
 
 ## Testing
 
+The db0 adapter is tested against multiple databases to ensure compatibility:
+
+- **SQLite**: Default for fast in-memory testing
+- **PostgreSQL**: Full SQL database testing with advanced features
+
+### Running Tests
+
+```bash
+# Test with SQLite (default)
+npm test
+
+# Test with PostgreSQL
+TEST_DB=postgres npm test
+
+# Start PostgreSQL locally (requires Docker)
+docker-compose up -d postgres
+```
+
+### Local PostgreSQL Setup
+
+For local development and testing with PostgreSQL:
+
+```yaml
+# docker-compose.yml
+version: '3.8'
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: feathers
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "15432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
+```
+
+```bash
+# Start PostgreSQL
+docker-compose up -d
+
+# Connect to PostgreSQL
+psql -h localhost -p 15432 -U postgres -d feathers
+
+# Stop PostgreSQL
+docker-compose down
+
+# Remove data volume
+docker-compose down -v
+```
+
 ### Unit Testing
 
 ```typescript
 import { describe, it, expect, beforeEach } from 'vitest'
 import { createDatabase } from 'db0'
 import sqlite from 'db0/connectors/better-sqlite3'
+import postgres from 'db0/connectors/postgresql'
 import { Db0Service } from '@wingshq/db0'
 
 describe('UserService', () => {
   let service: Db0Service<User>
   
   beforeEach(async () => {
-    // In-memory database for each test
-    const db = createDatabase(
-      sqlite({ name: ':memory:' })
-    )
+    // Choose database based on environment
+    const db = process.env.TEST_DB === 'postgres' 
+      ? createDatabase(postgres({
+          host: 'localhost',
+          port: 15432,
+          database: 'feathers',
+          user: 'postgres',
+          password: 'postgres'
+        }))
+      : createDatabase(
+          sqlite({ name: ':memory:' })
+        )
     
-    // Create schema
-    await db.exec(`
-      CREATE TABLE users (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        email TEXT UNIQUE NOT NULL,
-        name TEXT
-      )
-    `)
+    // Create schema (adjust for database type)
+    const dialect = process.env.TEST_DB === 'postgres' ? 'postgres' : 'sqlite'
+    if (dialect === 'postgres') {
+      await db.exec(`
+        CREATE TABLE IF NOT EXISTS users (
+          id SERIAL PRIMARY KEY,
+          email TEXT UNIQUE NOT NULL,
+          name TEXT
+        )
+      `)
+    } else {
+      await db.exec(`
+        CREATE TABLE IF NOT EXISTS users (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          email TEXT UNIQUE NOT NULL,
+          name TEXT
+        )
+      `)
+    }
     
     service = new Db0Service<User>({
       db,
-      table: 'users'
+      table: 'users',
+      dialect
     })
   })
   

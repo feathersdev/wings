@@ -89,13 +89,25 @@ interface Database {
 }
 
 // Create Kysely instance
+// Option 1: PostgreSQL
 const db = new Kysely<Database>({
   dialect: new PostgresDialect({
     pool: new Pool({
-      connectionString: 'postgresql://localhost/myapp'
+      host: 'localhost',
+      port: 5432,
+      database: 'myapp',
+      user: 'postgres',
+      password: 'postgres'
     })
   })
 })
+
+// Option 2: SQLite
+// const db = new Kysely<Database>({
+//   dialect: new SqliteDialect({
+//     database: new Database('./myapp.db')
+//   })
+// })
 
 // Create adapter instance
 const users = new KyselyAdapter<Database['users']>({
@@ -333,7 +345,7 @@ await service.patch(null, { archived: true }, {
 #### Database Setup
 
 ```typescript
-// PostgreSQL
+// PostgreSQL - Standard connection
 import { PostgresDialect } from 'kysely'
 import { Pool } from 'pg'
 
@@ -341,10 +353,45 @@ const db = new Kysely<Database>({
   dialect: new PostgresDialect({
     pool: new Pool({
       host: 'localhost',
+      port: 5432,
+      database: 'myapp',
+      user: 'postgres',
+      password: 'postgres',
+      max: 10
+    })
+  })
+})
+
+// PostgreSQL - Connection string
+const db = new Kysely<Database>({
+  dialect: new PostgresDialect({
+    pool: new Pool({
+      connectionString: 'postgresql://user:password@localhost:5432/myapp'
+    })
+  })
+})
+
+// PostgreSQL - Environment variable
+const db = new Kysely<Database>({
+  dialect: new PostgresDialect({
+    pool: new Pool({
+      connectionString: process.env.DATABASE_URL
+    })
+  })
+})
+
+// PostgreSQL with SSL (AWS RDS, Heroku, etc.)
+const db = new Kysely<Database>({
+  dialect: new PostgresDialect({
+    pool: new Pool({
+      host: 'your-database.amazonaws.com',
+      port: 5432,
       database: 'myapp',
       user: 'dbuser',
       password: 'dbpass',
-      max: 10
+      ssl: {
+        rejectUnauthorized: false
+      }
     })
   })
 })
@@ -357,17 +404,26 @@ const db = new Kysely<Database>({
   dialect: new MysqlDialect({
     pool: createPool({
       host: 'localhost',
+      port: 3306,
       database: 'myapp',
-      user: 'dbuser',
-      password: 'dbpass'
+      user: 'root',
+      password: 'password',
+      charset: 'utf8mb4'
     })
   })
 })
 
-// SQLite
+// SQLite - File-based
 import { SqliteDialect } from 'kysely'
 import Database from 'better-sqlite3'
 
+const db = new Kysely<Database>({
+  dialect: new SqliteDialect({
+    database: new Database('./myapp.db')
+  })
+})
+
+// SQLite - In-memory (great for testing)
 const db = new Kysely<Database>({
   dialect: new SqliteDialect({
     database: new Database(':memory:')
@@ -501,6 +557,63 @@ await service.find({
 ```
 
 ## Advanced Features
+
+### PostgreSQL-Specific Features
+
+The adapter fully supports PostgreSQL's advanced features:
+
+```typescript
+// Case-insensitive search with ILIKE
+const results = await service.find({
+  query: {
+    name: { $ilike: '%smith%' }  // Native PostgreSQL ILIKE
+  }
+})
+
+// Using Kysely for PostgreSQL arrays
+const db = service.Model
+const posts = await db
+  .selectFrom('posts')
+  .where('tags', '@>', ['javascript', 'typescript'])
+  .execute()
+
+// JSONB queries with Kysely
+interface UserTable {
+  id: Generated<number>
+  email: string
+  metadata: {
+    role: string
+    preferences: {
+      theme: string
+      notifications: boolean
+    }
+  }
+}
+
+const admins = await db
+  .selectFrom('users')
+  .where('metadata', '->', 'role', '=', 'admin')
+  .execute()
+
+// Full-text search
+const results = await db
+  .selectFrom('posts')
+  .whereRaw("to_tsvector('english', title || ' ' || content) @@ plainto_tsquery('english', ?)", ['search terms'])
+  .execute()
+
+// Window functions
+const ranked = await db
+  .selectFrom('scores')
+  .select([
+    'player_name',
+    'score',
+    db.fn
+      .rank()
+      .over(ob => ob.orderBy('score', 'desc'))
+      .as('rank')
+  ])
+  .execute()
+```
 
 ### Transactions
 
@@ -748,6 +861,47 @@ const allUsers = await users.find() // Type: UserTable[]
 
 ## Testing
 
+The kysely adapter is tested against multiple databases:
+
+- **SQLite**: Default for fast in-memory testing
+- **PostgreSQL**: Full SQL database testing with advanced features
+
+### Running Tests
+
+```bash
+# Test with SQLite (default)
+npm test
+
+# Test with PostgreSQL
+TEST_DB=postgres npm test
+
+# Start PostgreSQL locally (requires Docker)
+docker-compose up -d postgres
+```
+
+### Local PostgreSQL Setup
+
+For local development and testing:
+
+```yaml
+# docker-compose.yml
+version: '3.8'
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: feathers
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "15432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
+```
+
 ### Unit Testing
 
 ```typescript
@@ -794,6 +948,89 @@ describe('UserService', () => {
     
     expect(user.id).toBeDefined()
     expect(user.email).toBe('test@example.com')
+  })
+})
+```
+
+### PostgreSQL Testing
+
+```typescript
+import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { Kysely, PostgresDialect } from 'kysely'
+import { Pool } from 'pg'
+import { KyselyAdapter } from '@wingshq/kysely'
+
+describe('UserService with PostgreSQL', () => {
+  let db: Kysely<Database>
+  let service: KyselyAdapter<User>
+  
+  beforeEach(async () => {
+    // Connect to PostgreSQL test database
+    db = new Kysely<Database>({
+      dialect: new PostgresDialect({
+        pool: new Pool({
+          host: 'localhost',
+          port: 15432,
+          database: 'feathers_test',
+          user: 'postgres',
+          password: 'postgres'
+        })
+      })
+    })
+    
+    // Create schema with PostgreSQL-specific features
+    await db.schema
+      .dropTable('users')
+      .ifExists()
+      .execute()
+      
+    await db.schema
+      .createTable('users')
+      .addColumn('id', 'serial', col => col.primaryKey())
+      .addColumn('email', 'text', col => col.notNull().unique())
+      .addColumn('name', 'text', col => col.notNull())
+      .addColumn('metadata', 'jsonb')
+      .addColumn('tags', 'text[]')
+      .addColumn('createdAt', 'timestamp', col => col.defaultTo(sql`now()`))
+      .execute()
+    
+    service = new KyselyAdapter<User>({
+      Model: db,
+      table: 'users',
+      dialect: 'postgres'
+    })
+  })
+  
+  afterEach(async () => {
+    await db.destroy()
+  })
+  
+  it('should support JSONB queries', async () => {
+    await service.create({ 
+      email: 'test@example.com',
+      name: 'Test User',
+      metadata: { role: 'admin', verified: true }
+    })
+    
+    const results = await db
+      .selectFrom('users')
+      .where('metadata', '->', 'role', '=', 'admin')
+      .execute()
+    
+    expect(results).toHaveLength(1)
+  })
+  
+  it('should support case-insensitive search', async () => {
+    await service.create({ 
+      email: 'john.smith@example.com',
+      name: 'John Smith'
+    })
+    
+    const results = await service.find({
+      query: { name: { $ilike: '%SMITH%' } }
+    })
+    
+    expect(results).toHaveLength(1)
   })
 })
 ```

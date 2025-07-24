@@ -88,16 +88,30 @@ interface User {
 }
 
 // Create database connection
+// Option 1: PostgreSQL
 const db = knex({
   client: 'pg',
   connection: {
     host: 'localhost',
     port: 5432,
-    user: 'your_user',
-    password: 'your_password',
-    database: 'your_database'
+    user: 'postgres',
+    password: 'postgres',
+    database: 'myapp'
+  },
+  pool: {
+    min: 2,
+    max: 10
   }
 })
+
+// Option 2: SQLite
+// const db = knex({
+//   client: 'sqlite3',
+//   connection: {
+//     filename: './myapp.db'
+//   },
+//   useNullAsDefault: true
+// })
 
 // Create service instance
 const users = new KnexService<User>({
@@ -335,11 +349,47 @@ await service.patch(null, { archived: true }, {
 #### Database Connection
 
 ```typescript
-// PostgreSQL with SSL
+// PostgreSQL - Standard connection
 const db = knex({
   client: 'pg',
   connection: {
-    host: 'your-host.com',
+    host: 'localhost',
+    port: 5432,
+    user: 'postgres',
+    password: 'postgres',
+    database: 'myapp'
+  },
+  pool: {
+    min: 2,
+    max: 10
+  }
+})
+
+// PostgreSQL - Connection string
+const db = knex({
+  client: 'pg',
+  connection: 'postgres://user:password@localhost:5432/myapp',
+  pool: {
+    min: 2,
+    max: 10
+  }
+})
+
+// PostgreSQL - Environment variable
+const db = knex({
+  client: 'pg',
+  connection: process.env.DATABASE_URL,
+  pool: {
+    min: 2,
+    max: 10
+  }
+})
+
+// PostgreSQL with SSL (AWS RDS, Heroku, etc.)
+const db = knex({
+  client: 'pg',
+  connection: {
+    host: 'your-database.amazonaws.com',
     port: 5432,
     user: 'dbuser',
     password: 'dbpass',
@@ -348,7 +398,35 @@ const db = knex({
   },
   pool: {
     min: 2,
-    max: 10
+    max: 10,
+    idleTimeoutMillis: 30000,
+    createTimeoutMillis: 30000,
+    acquireTimeoutMillis: 30000
+  }
+})
+
+// PostgreSQL with custom search_path
+const db = knex({
+  client: 'pg',
+  connection: {
+    host: 'localhost',
+    port: 5432,
+    user: 'postgres',
+    password: 'postgres',
+    database: 'myapp'
+  },
+  searchPath: ['public', 'myschema'],
+  pool: {
+    afterCreate: function (conn, done) {
+      // Runs after a connection is made to the database
+      conn.query('SET timezone="UTC";', function (err) {
+        if (err) {
+          done(err, conn);
+        } else {
+          done(null, conn);
+        }
+      });
+    }
   }
 })
 
@@ -357,14 +435,28 @@ const db = knex({
   client: 'mysql2',
   connection: {
     host: 'localhost',
+    port: 3306,
     user: 'root',
     password: 'password',
     database: 'myapp',
     charset: 'utf8mb4'
+  },
+  pool: {
+    min: 2,
+    max: 10
   }
 })
 
-// SQLite in-memory (great for testing)
+// SQLite - File-based
+const db = knex({
+  client: 'sqlite3',
+  connection: {
+    filename: './myapp.db'
+  },
+  useNullAsDefault: true
+})
+
+// SQLite - In-memory (great for testing)
 const db = knex({
   client: 'sqlite3',
   connection: ':memory:',
@@ -624,6 +716,13 @@ await service.removeMany({
 ### Database-Specific Features
 
 ```typescript
+// PostgreSQL: Case-insensitive search with ILIKE
+await service.find({
+  query: {
+    name: { $ilike: '%smith%' }  // Native PostgreSQL ILIKE
+  }
+})
+
 // PostgreSQL: JSONB queries
 await service.find({
   query: {
@@ -632,13 +731,25 @@ await service.find({
   }
 })
 
+// PostgreSQL: Array operations
+const results = await db.raw(
+  'SELECT * FROM posts WHERE tags && ARRAY[?]::text[]',
+  ['javascript']
+)
+
+// PostgreSQL: Full-text search
+const results = await db.raw(
+  "SELECT * FROM posts WHERE to_tsvector('english', title || ' ' || content) @@ plainto_tsquery('english', ?)",
+  ['search terms']
+)
+
 // MySQL: Full-text search
 const results = await db.raw(
   'SELECT * FROM posts WHERE MATCH(title, content) AGAINST(?)',
   ['search terms']
 )
 
-// SQLite: Custom collation
+// SQLite: Enable foreign keys
 db.client.pool.on('createSuccess', (eventId, resource) => {
   resource.run('PRAGMA foreign_keys = ON')
 })
@@ -850,7 +961,47 @@ const paginated = await users.find({ paginate: true })  // Type: Paginated<User>
 
 ## Testing
 
-The knex adapter works great for testing with different strategies:
+The knex adapter is tested against multiple databases:
+
+- **SQLite**: Default for fast in-memory testing
+- **PostgreSQL**: Full SQL database testing with advanced features
+- **MySQL**: Additional SQL dialect support
+
+### Running Tests
+
+```bash
+# Test with SQLite (default)
+npm test
+
+# Test with PostgreSQL
+TEST_DB=postgres npm test
+
+# Start PostgreSQL locally (requires Docker)
+docker-compose up -d postgres
+```
+
+### Local PostgreSQL Setup
+
+For local development and testing:
+
+```yaml
+# docker-compose.yml
+version: '3.8'
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: feathers
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "15432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
+```
 
 ### In-Memory SQLite
 
@@ -900,6 +1051,64 @@ describe('UserService', () => {
         name: 'Duplicate' 
       })
     ).rejects.toThrow()
+  })
+})
+```
+
+### PostgreSQL Testing
+
+```typescript
+describe('UserService with PostgreSQL', () => {
+  let db: Knex
+  let userService: UserService
+  
+  beforeEach(async () => {
+    // Connect to PostgreSQL test database
+    db = knex({
+      client: 'pg',
+      connection: {
+        host: 'localhost',
+        port: 15432,
+        database: 'feathers_test',
+        user: 'postgres',
+        password: 'postgres'
+      }
+    })
+    
+    // Create schema with PostgreSQL-specific features
+    await db.schema.dropTableIfExists('users')
+    await db.schema.createTable('users', (table) => {
+      table.increments('id')
+      table.string('email').unique()
+      table.string('name')
+      table.jsonb('metadata')
+      table.specificType('tags', 'text[]')
+      table.timestamps(true, true)
+    })
+    
+    userService = new UserService(
+      new KnexService({ Model: db, name: 'users' })
+    )
+  })
+  
+  afterEach(async () => {
+    await db.destroy()
+  })
+  
+  it('should support JSONB queries', async () => {
+    await userService.create({ 
+      email: 'test@example.com',
+      name: 'Test User',
+      metadata: { role: 'admin', verified: true }
+    })
+    
+    const admins = await userService.find({
+      query: {
+        'metadata->role': 'admin'
+      }
+    })
+    
+    expect(admins).toHaveLength(1)
   })
 })
 ```
