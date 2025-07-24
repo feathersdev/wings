@@ -21,7 +21,9 @@ import { createMyAdapter } from './my-adapter'
 // Service factory function for test isolation
 const createService = () => {
   // Return a fresh adapter instance for each test
-  return createMyAdapter({ /* config */ })
+  return createMyAdapter({
+    /* config */
+  })
 }
 
 // Run comprehensive test suite
@@ -38,7 +40,9 @@ import { commonTests, feathersTests, FEATHERS_CONFIG } from '@wingshq/adapter-te
 import { FeathersMyAdapter } from './feathers-wrapper'
 
 const createService = () => {
-  return new FeathersMyAdapter({ /* config */ })
+  return new FeathersMyAdapter({
+    /* config */
+  })
 }
 
 describe('My FeathersJS Wrapper', () => {
@@ -60,9 +64,7 @@ Create your adapter by extending `AdapterBase` from `@wingshq/adapter-commons`:
 ```typescript
 import { AdapterBase, Primitive, Paginated, AdapterParams } from '@wingshq/adapter-commons'
 
-export class MyWingsAdapter<T extends Record<string, any>> 
-  extends AdapterBase<T> {
-  
+export class MyWingsAdapter<T extends Record<string, any>> extends AdapterBase<T> {
   constructor(options: MyAdapterOptions) {
     super(options)
     // Your initialization code
@@ -72,15 +74,15 @@ export class MyWingsAdapter<T extends Record<string, any>>
   async find(params: AdapterParams & { paginate: true }): Promise<Paginated<T>>
   async find(params?: AdapterParams): Promise<T[] | Paginated<T>> {
     const { filters, query } = this.filterQuery(params)
-    
+
     // Your find implementation
     const data = await this.queryDatabase(query, filters)
-    
+
     if (params?.paginate) {
       const total = await this.countRecords(query)
       return this.buildPaginatedResult(data, total, filters)
     }
-    
+
     return data
   }
 
@@ -142,7 +144,6 @@ By extending `AdapterBase`, your adapter automatically inherits:
 - **Pagination**: `buildPaginatedResult()` creates properly formatted paginated responses
 - **SQL-like Operators**: `convertSqlLikeOperators()` converts `$like`, `$ilike`, `$isNull` for non-SQL databases
 - **Common Properties**: `id` getter and `options` management
-```
 
 #### Step 2: Create Test File
 
@@ -195,7 +196,7 @@ Wings adapters should support these query operators where applicable:
 
 // Database-specific operators (implement as supported)
 { name: { $like: 'John%' } }        // SQL LIKE
-{ name: { $ilike: 'john' } }        // Case-insensitive LIKE  
+{ name: { $ilike: 'john' } }        // Case-insensitive LIKE
 { age: { $isNull: true } }          // NULL checks
 ```
 
@@ -210,11 +211,9 @@ Once you have a working Wings adapter, create a FeathersJS compatibility wrapper
 import { FeathersAdapterInterface, NotFound, BadRequest } from '@wingshq/adapter-commons'
 import { MyWingsAdapter } from './wings-adapter.js'
 
-export class FeathersMyAdapter<T extends Record<string, any>> 
-  implements FeathersAdapterInterface<T> {
-  
+export class FeathersMyAdapter<T extends Record<string, any>> implements FeathersAdapterInterface<T> {
   private wingsService: MyWingsAdapter<T>
-  
+
   constructor(options: MyAdapterOptions) {
     this.wingsService = new MyWingsAdapter(options)
   }
@@ -225,11 +224,11 @@ export class FeathersMyAdapter<T extends Record<string, any>>
 
   async find(params?: FeathersParams): Promise<Paginated<T>> {
     // Always return paginated results for FeathersJS compatibility
-    const result = await this.wingsService.find({ 
-      ...params, 
-      paginate: params?.paginate !== false 
+    const result = await this.wingsService.find({
+      ...params,
+      paginate: params?.paginate !== false
     })
-    
+
     if (Array.isArray(result)) {
       // Convert array to paginated format
       return {
@@ -323,7 +322,7 @@ Export both interfaces from your package:
       "require": "./lib/index.js"
     },
     "./feathers": {
-      "types": "./lib/feathers.d.ts", 
+      "types": "./lib/feathers.d.ts",
       "import": "./esm/feathers.js",
       "require": "./lib/feathers.js"
     }
@@ -332,11 +331,12 @@ Export both interfaces from your package:
 ```
 
 This allows users to import either interface:
+
 ```typescript
 // Wings interface
 import { MyAdapter } from '@wingshq/my-adapter'
 
-// FeathersJS interface  
+// FeathersJS interface
 import { FeathersMyAdapter } from '@wingshq/my-adapter/feathers'
 ```
 
@@ -349,24 +349,24 @@ The test suite uses configuration objects to adapt test behavior:
 ```typescript
 // Wings adapter configuration
 export const WINGS_CONFIG: TestConfig = {
-  throwOnNotFound: false,    // Return null instead of throwing
-  alwaysPaginate: false,     // Return arrays by default
+  throwOnNotFound: false, // Return null instead of throwing
+  alwaysPaginate: false, // Return arrays by default
   supportsBulkViaNull: false, // Use explicit patchMany/removeMany
-  supportsUpdate: false,     // Wings doesn't have update() method
-  supportsLike: true,        // Database supports $like operator
-  supportsIlike: true,       // Database supports $ilike operator  
-  supportsIsNull: true       // Database supports $isNull operator
+  supportsUpdate: false, // Wings doesn't have update() method
+  supportsLike: true, // Database supports $like operator
+  supportsIlike: true, // Database supports $ilike operator
+  supportsIsNull: true // Database supports $isNull operator
 }
 
 // FeathersJS adapter configuration
 export const FEATHERS_CONFIG: TestConfig = {
-  throwOnNotFound: true,     // Throw NotFound errors
-  alwaysPaginate: true,      // Always return Paginated<T>
+  throwOnNotFound: true, // Throw NotFound errors
+  alwaysPaginate: true, // Always return Paginated<T>
   supportsBulkViaNull: true, // Support patch(null) and remove(null)
-  supportsUpdate: true,      // Has update() method
-  supportsLike: false,       // Depends on adapter
-  supportsIlike: false,      // Depends on adapter
-  supportsIsNull: false      // Depends on adapter
+  supportsUpdate: true, // Has update() method
+  supportsLike: false, // Depends on adapter
+  supportsIlike: false, // Depends on adapter
+  supportsIsNull: false // Depends on adapter
 }
 ```
 
@@ -395,26 +395,31 @@ wingsTests(createService, '_id')
 ## Best Practices
 
 ### 1. Test Organization
+
 - Keep Wings and FeathersJS tests in separate files
 - Use descriptive test file names: `wings.test.ts`, `feathers.test.ts`
 - Group related functionality in test suites
 
 ### 2. Error Handling
+
 - Wings adapters return `null` for not-found cases
 - FeathersJS wrappers throw appropriate errors (`NotFound`, `BadRequest`)
 - Always validate required parameters and throw meaningful errors
 
 ### 3. Type Safety
+
 - Use TypeScript generics consistently: `MyAdapter<T extends Record<string, any>>`
 - Implement proper return type overloads for `find()` method
 - Ensure FeathersJS wrappers maintain type compatibility
 
 ### 4. Performance
+
 - Use service factories to prevent test interference
 - Clean up test data in `afterEach` hooks
 - Implement efficient pagination with conditional COUNT queries
 
 ### 5. Query Operators
+
 - Document which operators your adapter supports
 - Use feature flags in test config to skip unsupported operators
 - Implement database-specific operators where beneficial
