@@ -58,15 +58,28 @@ jobs:
           # Install build dependencies
           sudo apt-get update && sudo apt-get install -y python3 make g++ 
           
-          # Rebuild better-sqlite3 in packages that use it
-          echo "=== Rebuilding better-sqlite3 in packages ==="
-          cd packages/db0 && pnpm rebuild better-sqlite3 && cd ../..
-          cd packages/knex && pnpm rebuild better-sqlite3 && cd ../..
-          cd packages/kysely && pnpm rebuild better-sqlite3 && cd ../..
+          # Rebuild better-sqlite3 at workspace root first (for hoisted deps)
+          echo "=== Rebuilding better-sqlite3 at workspace root ==="
+          pnpm rebuild better-sqlite3
+          
+          # Also rebuild in individual packages that have it as devDependency
+          echo "=== Rebuilding better-sqlite3 in individual packages ==="
+          for pkg in db0 knex kysely; do
+            if [ -d "packages/$pkg" ]; then
+              echo "Rebuilding in packages/$pkg"
+              cd "packages/$pkg"
+              pnpm rebuild better-sqlite3 2>/dev/null || echo "No better-sqlite3 in $pkg, skipping"
+              cd ../..
+            fi
+          done
           
           # Find and display where bindings were built
           echo "=== Looking for better_sqlite3.node files ==="
           find . -name "better_sqlite3.node" -type f 2>/dev/null || true
+          
+          # Verify bindings are accessible
+          echo "=== Verifying bindings accessibility ==="
+          node -e "try { require('better-sqlite3'); console.log('✓ better-sqlite3 bindings OK'); } catch(e) { console.log('✗ better-sqlite3 bindings failed:', e.message); }"
       
       - name: Build packages
         run: pnpm run compile
