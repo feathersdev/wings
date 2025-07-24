@@ -58,31 +58,42 @@ jobs:
           # Install build dependencies
           sudo apt-get update && sudo apt-get install -y python3 make g++ 
 
+          # First, find all better-sqlite3 installations
+          echo "=== Finding better-sqlite3 installations ==="
+          find . -path "*/node_modules/better-sqlite3" -type d | head -20
+
           # Rebuild better-sqlite3 at workspace root first (for hoisted deps)
           echo "=== Rebuilding better-sqlite3 at workspace root ==="
-          pnpm rebuild better-sqlite3
+          pnpm rebuild better-sqlite3 || echo "No better-sqlite3 at root"
 
-          # Also rebuild in individual packages that have it as devDependency
-          echo "=== Rebuilding better-sqlite3 in individual packages ==="
-          for pkg in db0 knex kysely; do
-            if [ -d "packages/$pkg" ]; then
-              echo "Rebuilding in packages/$pkg"
-              cd "packages/$pkg"
-              pnpm rebuild better-sqlite3 2>/dev/null || echo "No better-sqlite3 in $pkg, skipping"
-              cd ../..
-            fi
+          # Force rebuild using npm in specific locations if pnpm fails
+          echo "=== Force rebuilding better-sqlite3 in all locations ==="
+          find . -path "*/node_modules/better-sqlite3" -type d | while read -r dir; do
+            echo "Rebuilding in: $dir"
+            (cd "$dir" && npm run install --build-from-source) || echo "Failed in $dir"
           done
 
           # Find and display where bindings were built
           echo "=== Looking for better_sqlite3.node files ==="
           find . -name "better_sqlite3.node" -type f 2>/dev/null || true
 
-          # Verify bindings are accessible
-          echo "=== Verifying bindings accessibility ==="
-          node -e "try { require('better-sqlite3'); console.log('✓ better-sqlite3 bindings OK'); } catch(e) { console.log('✗ better-sqlite3 bindings failed:', e.message); }"
-
       - name: Build packages
         run: pnpm run compile
+
+      - name: Post-compile better-sqlite3 verification
+        run: |
+          # Sometimes compile step affects node_modules, rebuild again
+          echo "=== Post-compile rebuild of better-sqlite3 ==="
+          pnpm rebuild better-sqlite3
+
+          # Verify bindings in each package that uses better-sqlite3
+          echo "=== Verifying bindings in each package ==="
+          for pkg in db0 knex kysely; do
+            if [ -d "packages/$pkg" ]; then
+              echo "Checking packages/$pkg"
+              (cd "packages/$pkg" && node -e "try { require('better-sqlite3'); console.log('✓ better-sqlite3 OK in $pkg'); } catch(e) { console.log('✗ better-sqlite3 failed in $pkg:', e.message); }")
+            fi
+          done
 
       - name: Run linter
         run: pnpm run lint
