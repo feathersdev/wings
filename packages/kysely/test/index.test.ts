@@ -30,12 +30,18 @@ interface TestDatabase {
 // Create custom configs with proper nonExistentId for PostgreSQL
 const wingsConfig: TestConfig = {
   ...WINGS_CONFIG,
-  nonExistentId: process.env.TEST_DB === 'postgres' ? 999999 : '568225fbfe21222432e836ff'
+  nonExistentId:
+    process.env.TEST_DB === 'postgres' || process.env.TEST_DB === 'mysql'
+      ? 999999
+      : '568225fbfe21222432e836ff'
 }
 
 const feathersConfig: TestConfig = {
   ...FEATHERS_CONFIG,
-  nonExistentId: process.env.TEST_DB === 'postgres' ? 999999 : '568225fbfe21222432e836ff'
+  nonExistentId:
+    process.env.TEST_DB === 'postgres' || process.env.TEST_DB === 'mysql'
+      ? 999999
+      : '568225fbfe21222432e836ff'
 }
 
 describe('Kysely Adapter Tests', () => {
@@ -60,7 +66,7 @@ describe('Kysely Adapter Tests', () => {
         Model: db,
         table: 'people',
         id: 'id',
-        dialect: TYPE === 'postgres' ? 'postgres' : 'sqlite'
+        dialect: TYPE === 'postgres' ? 'postgres' : TYPE === 'mysql' ? 'mysql' : 'sqlite'
       })
     })
 
@@ -70,7 +76,7 @@ describe('Kysely Adapter Tests', () => {
       expect(adapter).toBeInstanceOf(KyselyAdapter)
       expect(adapter.id).toBe('id')
       expect(adapter.table).toBe('people')
-      expect(adapter.dialect).toBe(TYPE === 'postgres' ? 'postgres' : 'sqlite')
+      expect(adapter.dialect).toBe(TYPE === 'postgres' ? 'postgres' : TYPE === 'mysql' ? 'mysql' : 'sqlite')
     })
 
     const serviceFactory: ServiceFactory<KyselyAdapter<ExtendedPerson>> = () => adapter
@@ -86,7 +92,7 @@ describe('Kysely Adapter Tests', () => {
         Model: db,
         table: 'people',
         id: 'id',
-        dialect: TYPE === 'postgres' ? 'postgres' : 'sqlite'
+        dialect: TYPE === 'postgres' ? 'postgres' : TYPE === 'mysql' ? 'mysql' : 'sqlite'
       })
     })
 
@@ -110,7 +116,7 @@ describe('Kysely Adapter Tests', () => {
         Model: db,
         table: 'people',
         id: 'id',
-        dialect: TYPE === 'postgres' ? 'postgres' : 'sqlite'
+        dialect: TYPE === 'postgres' ? 'postgres' : TYPE === 'mysql' ? 'mysql' : 'sqlite'
       })
     })
 
@@ -211,11 +217,12 @@ describe('Kysely Adapter Tests', () => {
         nickname?: string | null
       }
 
+      const TYPE = process.env.TEST_DB || 'sqlite'
       const adapterWithNickname = new KyselyAdapter<PersonWithNickname>({
         Model: db,
         table: 'people',
         id: 'id',
-        dialect: 'sqlite'
+        dialect: TYPE === 'postgres' ? 'postgres' : TYPE === 'mysql' ? 'mysql' : 'sqlite'
       })
 
       await adapterWithNickname.create([

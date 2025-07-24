@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        test-db: [sqlite, postgres]
+        test-db: [sqlite, postgres, mysql]
         
     name: Test with ${{ matrix.test-db }}
 
@@ -36,6 +36,21 @@ jobs:
           - 27017:27017
         options: >-
           --health-cmd "mongosh --eval 'db.adminCommand(\"ping\")'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      mysql:
+        image: mysql:8
+        env:
+          MYSQL_ROOT_PASSWORD: mysql
+          MYSQL_DATABASE: feathers
+          MYSQL_USER: mysql
+          MYSQL_PASSWORD: mysql
+        ports:
+          - 23306:3306
+        options: >-
+          --health-cmd "mysqladmin ping"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5

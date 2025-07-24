@@ -1,6 +1,7 @@
-import { Kysely, PostgresDialect, SqliteDialect } from 'kysely'
+import { Kysely, PostgresDialect, SqliteDialect, MysqlDialect } from 'kysely'
 import Database from 'better-sqlite3'
 import pg from 'pg'
+import { createPool } from 'mysql2'
 
 export interface TestDatabaseSetup {
   db: Kysely<any>
@@ -19,6 +20,23 @@ export const connection = (DB: string, testName?: string) => {
           user: 'postgres',
           password: 'postgres',
           max: 10
+        })
+      })
+    })
+  }
+
+  if (DB === 'mysql') {
+    return new Kysely({
+      dialect: new MysqlDialect({
+        pool: createPool({
+          host: 'localhost',
+          port: 23306,
+          database: 'feathers',
+          user: 'mysql',
+          password: 'mysql',
+          waitForConnections: true,
+          connectionLimit: 10,
+          queueLimit: 0
         })
       })
     })
@@ -46,14 +64,24 @@ export async function createTestDatabase(testName: string): Promise<TestDatabase
     // Create table
     await db.schema
       .createTable(tableName)
-      .addColumn(idField, TYPE === 'postgres' ? 'serial' : 'integer', (col) =>
-        TYPE === 'postgres' ? col.primaryKey() : col.primaryKey().autoIncrement()
+      .addColumn(
+        idField,
+        TYPE === 'postgres' ? 'serial' : TYPE === 'mysql' ? 'integer' : 'integer',
+        (col) => {
+          if (TYPE === 'postgres') {
+            return col.primaryKey()
+          } else if (TYPE === 'mysql') {
+            return col.primaryKey().autoIncrement()
+          } else {
+            return col.primaryKey().autoIncrement()
+          }
+        }
       )
-      .addColumn('name', TYPE === 'postgres' ? 'varchar(255)' : 'text', (col) => col.notNull())
+      .addColumn('name', TYPE === 'sqlite' ? 'text' : 'varchar(255)', (col) => col.notNull())
       .addColumn('age', 'integer')
       .addColumn('time', 'integer')
       .addColumn('created', 'boolean', (col) => col.defaultTo(false))
-      .addColumn('email', TYPE === 'postgres' ? 'varchar(255)' : 'text')
+      .addColumn('email', TYPE === 'sqlite' ? 'text' : 'varchar(255)')
       .execute()
   }
 

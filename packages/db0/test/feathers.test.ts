@@ -16,7 +16,7 @@ describe('db0 FeathersJS adapter', () => {
       db: dbSetup.db,
       table: 'people',
       idField: 'id',
-      dialect: TYPE === 'postgres' ? 'postgres' : 'sqlite'
+      dialect: TYPE === 'postgres' ? 'postgres' : TYPE === 'mysql' ? 'mysql' : 'sqlite'
     })
   })
 
@@ -25,7 +25,10 @@ describe('db0 FeathersJS adapter', () => {
   // Custom config for PostgreSQL integer IDs
   const customConfig: TestConfig = {
     ...FEATHERS_CONFIG,
-    nonExistentId: process.env.TEST_DB === 'postgres' ? 999999 : '568225fbfe21222432e836ff'
+    nonExistentId:
+      process.env.TEST_DB === 'postgres' || process.env.TEST_DB === 'mysql'
+        ? 999999
+        : '568225fbfe21222432e836ff'
   }
 
   // Run common tests with FeathersJS configuration and error handler

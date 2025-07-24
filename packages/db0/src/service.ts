@@ -73,12 +73,43 @@ export class Db0Service<RT extends DbRecord> {
   dialect: SqlDialect
   options: SqlServiceOptions
 
+  // Dialect-specific utilities
+  private static dialectUtils = {
+    mysql: {
+      supportsReturning: false,
+      quoteIdentifier: (id: string) => `\`${id}\``,
+      getUnlimitedLimit: () => '18446744073709551615', // MySQL max BIGINT UNSIGNED
+      getInsertId: (result: any) => result.insertId || null,
+      getAffectedRows: (result: any) => result.affectedRows || 0
+    },
+    postgres: {
+      supportsReturning: true,
+      quoteIdentifier: (id: string) => `"${id}"`,
+      getUnlimitedLimit: () => 'ALL',
+      getInsertId: (result: any) => result.lastInsertRowid || null,
+      getAffectedRows: (result: any) => result.changes || 0
+    },
+    sqlite: {
+      supportsReturning: true,
+      quoteIdentifier: (id: string) => `"${id}"`,
+      getUnlimitedLimit: () => '-1',
+      getInsertId: (result: any) => result.lastInsertRowid || null,
+      getAffectedRows: (result: any) => result.changes || 0
+    }
+  }
+
+  // Reference to the appropriate utilities for this instance
+  private utils: typeof Db0Service.dialectUtils.mysql
+
   constructor(options: SqlServiceOptions) {
     this.db = options.db
     this.table = options.table
     this.idField = options.idField || 'id'
     this.dialect = options.dialect || 'sqlite'
     this.options = options
+
+    // Select the appropriate utilities based on dialect
+    this.utils = Db0Service.dialectUtils[this.dialect]
   }
 
   // FeathersJS compatibility: provide id property
@@ -93,8 +124,7 @@ export class Db0Service<RT extends DbRecord> {
    * @returns The quoted identifier string.
    */
   static quoteId(id: string, dialect: SqlDialect): string {
-    if (dialect === 'mysql') return `\`${id}\``
-    return `"${id}"`
+    return Db0Service.dialectUtils[dialect].quoteIdentifier(id)
   }
 
   // Convert ? placeholders to $n for Postgres
@@ -191,13 +221,8 @@ export class Db0Service<RT extends DbRecord> {
       limit = `LIMIT ${Number(query.$limit)}`
     }
     if (query.$skip !== undefined) {
-      // PostgreSQL doesn't support negative LIMIT, use ALL instead
       if (!limit) {
-        if (this.dialect === 'postgres') {
-          limit = 'LIMIT ALL'
-        } else {
-          limit = 'LIMIT -1'
-        }
+        limit = `LIMIT ${this.utils.getUnlimitedLimit()}`
       }
       offset = `OFFSET ${Number(query.$skip)}`
     }
@@ -358,13 +383,35 @@ export class Db0Service<RT extends DbRecord> {
     const sql = `INSERT INTO ${Db0Service.quoteId(
       this.table,
       this.dialect
-    )} (${columns}) VALUES (${placeholders}) RETURNING *`
-    const rows = await this.runSqlAll(sql, values)
-    const record = rows[0] as RT | undefined
-    if (!record) {
-      throw new GeneralError('Failed to retrieve inserted record')
+    )} (${columns}) VALUES (${placeholders})`
+
+    if (this.utils.supportsReturning) {
+      const rows = await this.runSqlAll(`${sql} RETURNING *`, values)
+      const record = rows[0] as RT | undefined
+      if (!record) {
+        throw new GeneralError('Failed to retrieve inserted record')
+      }
+      return record
+    } else {
+      // MySQL doesn't support RETURNING, so insert then fetch
+      const result = await this.db.prepare(sql).run(...values)
+      const insertId = this.utils.getInsertId(result)
+      if (!insertId) {
+        throw new GeneralError('Failed to get insert ID')
+      }
+
+      // Fetch the created record
+      const selectSql = `SELECT * FROM ${Db0Service.quoteId(this.table, this.dialect)} WHERE ${Db0Service.quoteId(
+        this.idField,
+        this.dialect
+      )} = ?`
+      const rows = await this.runSqlAll(selectSql, [insertId])
+      const record = rows[0] as RT | undefined
+      if (!record) {
+        throw new GeneralError('Failed to retrieve inserted record')
+      }
+      return record
     }
-    return record
   }
 
   private async createMany(data: Array<Record<string, Primitive>>): Promise<RT[]> {
@@ -381,9 +428,31 @@ export class Db0Service<RT extends DbRecord> {
     const sql = `INSERT INTO ${Db0Service.quoteId(
       this.table,
       this.dialect
-    )} (${columns}) VALUES ${rowPlaceholders} RETURNING *`
-    const rows = await this.runSqlAll(sql, allValues)
-    return rows as RT[]
+    )} (${columns}) VALUES ${rowPlaceholders}`
+
+    if (this.utils.supportsReturning) {
+      const rows = await this.runSqlAll(`${sql} RETURNING *`, allValues)
+      return rows as RT[]
+    } else {
+      // MySQL doesn't support RETURNING, so insert then fetch
+      const result = await this.db.prepare(sql).run(...allValues)
+      const firstInsertId = this.utils.getInsertId(result)
+      const affectedRows = this.utils.getAffectedRows(result) || data.length
+
+      if (!firstInsertId) {
+        throw new GeneralError('Failed to get insert ID')
+      }
+
+      // Fetch the created records - MySQL auto_increment IDs are sequential
+      const ids = Array.from({ length: affectedRows }, (_, i) => firstInsertId + i)
+      const placeholders = ids.map(() => '?').join(', ')
+      const selectSql = `SELECT * FROM ${Db0Service.quoteId(this.table, this.dialect)} WHERE ${Db0Service.quoteId(
+        this.idField,
+        this.dialect
+      )} IN (${placeholders})`
+      const rows = await this.runSqlAll(selectSql, ids)
+      return rows as RT[]
+    }
   }
 
   /**
@@ -417,22 +486,32 @@ export class Db0Service<RT extends DbRecord> {
     const fields = Object.keys(data)
     if (!fields.length) return this.get(id, params)
 
-    let columns = '*'
-    const query = params?.query ? { ...params.query } : {}
-    columns = this._getSelectColumns(query)
-
     const assignments = fields.map((f) => `${Db0Service.quoteId(f, this.dialect)} = ?`).join(', ')
     const values = fields.map((f) => this.convertValue(data[f]))
 
     // Use buildWhereClause to handle both id and additional query conditions
-    const { sql: whereClause, values: whereValues } = this.buildWhereClause(query, id)
+    const { sql: whereClause, values: whereValues } = this.buildWhereClause(params?.query || {}, id)
 
-    const sql = `UPDATE ${Db0Service.quoteId(
-      this.table,
-      this.dialect
-    )} SET ${assignments} ${whereClause} RETURNING ${columns}`
-    const rows = await this.runSqlAll(sql, [...values, ...whereValues])
-    return (rows[0] ?? null) as RT | null
+    const sql = `UPDATE ${Db0Service.quoteId(this.table, this.dialect)} SET ${assignments} ${whereClause}`
+
+    if (this.utils.supportsReturning) {
+      const columns = this._getSelectColumns(params?.query || {})
+      const rows = await this.runSqlAll(`${sql} RETURNING ${columns}`, [...values, ...whereValues])
+      return (rows[0] ?? null) as RT | null
+    } else {
+      // MySQL doesn't support RETURNING, so update then fetch
+      const result = await this.db.prepare(sql).run(...[...values, ...whereValues])
+
+      // Check if any rows were affected
+      const affectedRows = this.utils.getAffectedRows(result)
+      if (affectedRows === 0) {
+        return null
+      }
+
+      // Fetch the updated record - don't include query conditions since they might not match after update
+      const selectParams = params ? { query: { $select: params.query?.$select } } : undefined
+      return this.get(id, selectParams)
+    }
   }
 
   // Helper to build SQL WHERE clause and values from a query object (and optionally an initial id)
@@ -490,10 +569,22 @@ export class Db0Service<RT extends DbRecord> {
 
     const sql = `UPDATE ${Db0Service.quoteId(this.table, this.dialect)} SET ${assignments} ${
       whereSql ? 'WHERE ' + whereSql : ''
-    } RETURNING ${columns}`
-    const rows = await this.runSqlAll(sql, [...setValues, ...whereVals])
+    }`
 
-    return rows as RT[]
+    if (this.utils.supportsReturning) {
+      const rows = await this.runSqlAll(`${sql} RETURNING ${columns}`, [...setValues, ...whereVals])
+      return rows as RT[]
+    } else {
+      // MySQL doesn't support RETURNING, so update then fetch
+      await this.db.prepare(sql).run(...[...setValues, ...whereVals])
+
+      // Fetch the updated records
+      const selectSql = `SELECT ${columns} FROM ${Db0Service.quoteId(this.table, this.dialect)} ${
+        whereSql ? 'WHERE ' + whereSql : ''
+      }`
+      const rows = await this.runSqlAll(selectSql, whereVals)
+      return rows as RT[]
+    }
   }
 
   /**
@@ -514,10 +605,20 @@ export class Db0Service<RT extends DbRecord> {
     columns = this._getSelectColumns(query)
 
     const { sql: whereSql, values: whereValues } = this.buildWhereClause(query, id)
-    const sql = `DELETE FROM ${Db0Service.quoteId(this.table, this.dialect)} ${whereSql} RETURNING ${columns}`
-    const rows = await this.runSqlAll(sql, whereValues)
 
-    return (rows[0] ?? null) as RT | null
+    if (this.utils.supportsReturning) {
+      const sql = `DELETE FROM ${Db0Service.quoteId(this.table, this.dialect)} ${whereSql} RETURNING ${columns}`
+      const rows = await this.runSqlAll(sql, whereValues)
+      return (rows[0] ?? null) as RT | null
+    } else {
+      // MySQL doesn't support RETURNING, so fetch then delete
+      const record = await this.get(id, params)
+      if (!record) return null
+
+      const deleteSql = `DELETE FROM ${Db0Service.quoteId(this.table, this.dialect)} ${whereSql}`
+      await this.db.prepare(deleteSql).run(...whereValues)
+      return record
+    }
   }
 
   /**

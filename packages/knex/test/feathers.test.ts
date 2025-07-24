@@ -27,7 +27,10 @@ describe('FeathersJS Knex Adapter', () => {
   const testConfig = {
     ...FEATHERS_CONFIG,
     // Use a large integer that won't exist instead of string IDs for PostgreSQL
-    nonExistentId: process.env.TEST_DB === 'postgres' ? 999999999 : '568225fbfe21222432e836ff'
+    nonExistentId:
+      process.env.TEST_DB === 'postgres' || process.env.TEST_DB === 'mysql'
+        ? 999999999
+        : '568225fbfe21222432e836ff'
   }
 
   // Run the comprehensive test suites

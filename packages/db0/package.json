@@ -57,6 +57,7 @@
     "better-sqlite3": "^11.10.0",
     "eslint": "^9.31.0",
     "eslint-config-prettier": "^10.1.8",
+    "mysql2": "^3.13.5",
     "pg": "^8.16.3",
     "prettier": "^3.6.2",
     "shx": "^0.3.4",

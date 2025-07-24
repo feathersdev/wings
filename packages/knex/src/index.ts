@@ -226,18 +226,37 @@ export class KnexAdapter<T extends Record<string, any> = any>
     }
 
     const data = _data as Partial<T>
-    const { client } = this.db(params).client.config
-    const returning = RETURNING_CLIENTS.includes(client as string) ? [this.id] : []
-    const rows: any = await safeQueryExecution(this.db(params).insert(data, returning), errorHandler)
+    const db = this.db(params)
+    const { client } = db.client.config
+    const supportsReturning = RETURNING_CLIENTS.includes(client as string)
 
-    const id = data[this.id as keyof T] || rows[0]?.[this.id] || rows[0]
-    if (!id) return rows as T[]
+    if (supportsReturning) {
+      const rows: any = await safeQueryExecution(db.insert(data, [this.id]), errorHandler)
+      const id = data[this.id as keyof T] || rows[0]?.[this.id] || rows[0]
+      if (!id) return rows as T[]
 
-    const result = await this.get(id, {
-      ...params,
-      query: _.pick(params?.query || {}, '$select')
-    })
-    return result as T
+      const result = await this.get(id, {
+        ...params,
+        query: _.pick(params?.query || {}, '$select')
+      })
+      return result as T
+    } else {
+      // MySQL doesn't support RETURNING
+      const result: any = await safeQueryExecution(db.insert(data), errorHandler)
+      const insertId = Array.isArray(result) ? result[0] : result
+
+      // Use provided id or auto-generated id
+      const id = data[this.id as keyof T] || insertId
+      if (!id) {
+        throw new Error('Failed to get insert ID')
+      }
+
+      const record = await this.get(id, {
+        ...params,
+        query: _.pick(params?.query || {}, '$select')
+      })
+      return record as T
+    }
   }
 
   async patch(id: Primitive, data: Partial<T>, params?: KnexParams): Promise<T | null> {

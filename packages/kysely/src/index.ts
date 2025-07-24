@@ -124,6 +124,10 @@ export class KyselyAdapter<
     return this.options.dialect || 'sqlite'
   }
 
+  get supportsReturning() {
+    return this.dialect !== 'mysql'
+  }
+
   get id() {
     return this.options.id || 'id'
   }
@@ -544,24 +548,47 @@ export class KyselyAdapter<
         const batchSize = this.options.batchSize || (this.dialect === 'sqlite' ? 1 : 1000)
 
         // SQLite doesn't support returning with multiple inserts
-        if (this.dialect === 'sqlite' || batchSize === 1) {
+        // MySQL doesn't support RETURNING at all
+        if (this.dialect === 'sqlite' || this.dialect === 'mysql' || batchSize === 1) {
           const results: Result[] = []
           for (const item of data) {
             // Convert boolean values to integers for SQLite
-            const sqliteData = this.convertBooleansForSQLite(item)
-            const result = await db
-              .insertInto(this.table)
-              .values(sqliteData as any)
-              .returningAll()
-              .executeTakeFirst()
-            if (result) {
-              results.push(result as Result)
+            const itemData = this.convertBooleansForSQLite(item)
+
+            if (this.dialect === 'mysql') {
+              // MySQL doesn't support RETURNING, so insert then fetch
+              const insertResult = await db
+                .insertInto(this.table)
+                .values(itemData as any)
+                .execute()
+
+              // Get the inserted ID
+              const insertId = (insertResult as any)[0]?.insertId || (itemData as any)[this.id]
+              if (insertId) {
+                const result = await db
+                  .selectFrom(this.table)
+                  .selectAll()
+                  .where(this.id, '=', insertId)
+                  .executeTakeFirst()
+                if (result) {
+                  results.push(result as Result)
+                }
+              }
+            } else {
+              const result = await db
+                .insertInto(this.table)
+                .values(itemData as any)
+                .returningAll()
+                .executeTakeFirst()
+              if (result) {
+                results.push(result as Result)
+              }
             }
           }
           return results
         }
 
-        // For other databases, insert in batches
+        // For other databases with RETURNING support, insert in batches
         const results: Result[] = []
         for (let i = 0; i < data.length; i += batchSize) {
           const batch = data.slice(i, i + batchSize)
@@ -578,17 +605,44 @@ export class KyselyAdapter<
       // Single create
       // Convert boolean values to integers for SQLite
       const createData = this.convertBooleansForSQLite(data)
-      const result = await db
-        .insertInto(this.table)
-        .values(createData as any)
-        .returningAll()
-        .executeTakeFirst()
 
-      if (!result) {
-        throw new GeneralError(`Failed to create record in table: ${this.table}`)
+      if (this.dialect === 'mysql') {
+        // MySQL doesn't support RETURNING, so insert then fetch
+        const insertResult = await db
+          .insertInto(this.table)
+          .values(createData as any)
+          .execute()
+
+        // Get the inserted ID
+        const insertId = (insertResult as any)[0]?.insertId || (createData as any)[this.id]
+        if (!insertId) {
+          throw new GeneralError(`Failed to get insert ID for table: ${this.table}`)
+        }
+
+        const result = await db
+          .selectFrom(this.table)
+          .selectAll()
+          .where(this.id, '=', insertId)
+          .executeTakeFirst()
+
+        if (!result) {
+          throw new GeneralError(`Failed to retrieve created record from table: ${this.table}`)
+        }
+
+        return result as unknown as Result
+      } else {
+        const result = await db
+          .insertInto(this.table)
+          .values(createData as any)
+          .returningAll()
+          .executeTakeFirst()
+
+        if (!result) {
+          throw new GeneralError(`Failed to create record in table: ${this.table}`)
+        }
+
+        return result as unknown as Result
       }
-
-      return result as unknown as Result
     } catch (error: any) {
       if (this.options.debug) {
         console.error(`[Kysely Adapter] Create error in table ${this.table}:`, error)
@@ -621,17 +675,39 @@ export class KyselyAdapter<
       qb = this.applyWhereConditions(qb, filters)
     }
 
-    // Apply field selection for return
-    if (query.$select && Array.isArray(query.$select)) {
-      // Always include the id field
-      const fieldsToSelect = query.$select.includes(this.id) ? query.$select : [this.id, ...query.$select]
-      qb = qb.returning(fieldsToSelect as any) as any
-    } else {
-      qb = qb.returningAll() as any
-    }
+    if (this.supportsReturning) {
+      // Apply field selection for return
+      if (query.$select && Array.isArray(query.$select)) {
+        // Always include the id field
+        const fieldsToSelect = query.$select.includes(this.id) ? query.$select : [this.id, ...query.$select]
+        qb = qb.returning(fieldsToSelect as any) as any
+      } else {
+        qb = qb.returningAll() as any
+      }
 
-    const result = await qb.executeTakeFirst()
-    return (result || null) as Result | null
+      const result = await qb.executeTakeFirst()
+      return (result || null) as Result | null
+    } else {
+      // MySQL doesn't support RETURNING, so update then fetch
+      const updateResult = await qb.execute()
+      
+      // Check if any rows were affected
+      // Kysely returns UpdateResult with numUpdatedRows for MySQL
+      const affectedRows = (updateResult as any)[0]?.numUpdatedRows || (updateResult as any).numAffectedRows || 0
+      // Handle both number and BigInt types
+      if (affectedRows === 0 || affectedRows.toString() === '0') {
+        return null
+      }
+      
+      // Fetch the updated record - remove query constraints that were used for WHERE clause
+      const getParams = { ...params }
+      if (query.$select) {
+        getParams.query = { $select: query.$select }
+      } else {
+        delete getParams.query
+      }
+      return this.get(id, getParams)
+    }
   }
 
   async patchMany(data: PatchData, params?: Params & { allowAll?: boolean }): Promise<Result[]> {
@@ -658,17 +734,26 @@ export class KyselyAdapter<
       qb = this.applyWhereConditions(qb, filters)
     }
 
-    // Apply field selection for return
-    if (query.$select && Array.isArray(query.$select)) {
-      // Always include the id field
-      const fieldsToSelect = query.$select.includes(this.id) ? query.$select : [this.id, ...query.$select]
-      qb = qb.returning(fieldsToSelect as any) as any
-    } else {
-      qb = qb.returningAll() as any
-    }
+    if (this.supportsReturning) {
+      // Apply field selection for return
+      if (query.$select && Array.isArray(query.$select)) {
+        // Always include the id field
+        const fieldsToSelect = query.$select.includes(this.id) ? query.$select : [this.id, ...query.$select]
+        qb = qb.returning(fieldsToSelect as any) as any
+      } else {
+        qb = qb.returningAll() as any
+      }
 
-    const result = await qb.execute()
-    return result as unknown as Result[]
+      const result = await qb.execute()
+      return result as unknown as Result[]
+    } else {
+      // MySQL doesn't support RETURNING, so update then fetch
+      await qb.execute()
+      
+      // Fetch the updated records
+      const findParams = { ...params, query: { ...filters, $select: query.$select } }
+      return this.find(findParams) as Promise<Result[]>
+    }
   }
 
   async remove(id: Primitive, params?: Params): Promise<Result | null> {
@@ -690,17 +775,26 @@ export class KyselyAdapter<
       qb = this.applyWhereConditions(qb, filters)
     }
 
-    // Apply field selection for return
-    if (query.$select && Array.isArray(query.$select)) {
-      // Always include the id field
-      const fieldsToSelect = query.$select.includes(this.id) ? query.$select : [this.id, ...query.$select]
-      qb = qb.returning(fieldsToSelect as any) as any
-    } else {
-      qb = qb.returningAll() as any
-    }
+    if (this.supportsReturning) {
+      // Apply field selection for return
+      if (query.$select && Array.isArray(query.$select)) {
+        // Always include the id field
+        const fieldsToSelect = query.$select.includes(this.id) ? query.$select : [this.id, ...query.$select]
+        qb = qb.returning(fieldsToSelect as any) as any
+      } else {
+        qb = qb.returningAll() as any
+      }
 
-    const result = await qb.executeTakeFirst()
-    return (result || null) as Result | null
+      const result = await qb.executeTakeFirst()
+      return (result || null) as Result | null
+    } else {
+      // MySQL doesn't support RETURNING, so fetch then delete
+      const record = await this.get(id, params)
+      if (!record) return null
+      
+      await qb.execute()
+      return record
+    }
   }
 
   async removeMany(params?: Params & { allowAll?: boolean }): Promise<Result[]> {
@@ -725,24 +819,39 @@ export class KyselyAdapter<
       qb = this.applyWhereConditions(qb, filters)
     }
 
-    // Apply field selection for return
-    if (query.$select && Array.isArray(query.$select)) {
-      // Always include the id field
-      const fieldsToSelect = query.$select.includes(this.id) ? query.$select : [this.id, ...query.$select]
-      qb = qb.returning(fieldsToSelect as any) as any
-    } else {
-      qb = qb.returningAll() as any
-    }
+    if (this.supportsReturning) {
+      // Apply field selection for return
+      if (query.$select && Array.isArray(query.$select)) {
+        // Always include the id field
+        const fieldsToSelect = query.$select.includes(this.id) ? query.$select : [this.id, ...query.$select]
+        qb = qb.returning(fieldsToSelect as any) as any
+      } else {
+        qb = qb.returningAll() as any
+      }
 
-    const result = await qb.execute()
-    return result as unknown as Result[]
+      const result = await qb.execute()
+      return result as unknown as Result[]
+    } else {
+      // MySQL doesn't support RETURNING, so fetch then delete
+      const findParams = { ...params, query: { ...filters, $select: query.$select } }
+      const records = await this.find(findParams)
+      
+      await qb.execute()
+      return records as unknown as Result[]
+    }
   }
 
   async removeAll(): Promise<Result[]> {
     const db = this.getDb()
 
-    const result = await db.deleteFrom(this.table).returningAll().execute()
-
-    return result as unknown as Result[]
+    if (this.supportsReturning) {
+      const result = await db.deleteFrom(this.table).returningAll().execute()
+      return result as unknown as Result[]
+    } else {
+      // MySQL doesn't support RETURNING, so fetch all then delete
+      const records = await this.find()
+      await db.deleteFrom(this.table).execute()
+      return records as unknown as Result[]
+    }
   }
 }

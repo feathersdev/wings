@@ -61,6 +61,9 @@ npm install better-sqlite3
 # For PostgreSQL
 npm install pg
 
+# For MySQL
+npm install mysql2
+
 # For PostgreSQL (via Cloudflare Workers)
 npm install @cloudflare/workers-types
 
@@ -113,7 +116,7 @@ const users = new Db0Service<User>({
   db,
   table: 'users',
   idField: 'id',
-  dialect: 'sqlite'  // or 'postgres' for PostgreSQL
+  dialect: 'sqlite'  // or 'postgres' for PostgreSQL, 'mysql' for MySQL
 })
 
 // Create a user
@@ -223,7 +226,7 @@ interface Db0ServiceOptions {
   db: Database             // db0 database instance
   table: string           // Table name
   idField?: string        // Primary key field (default: 'id')
-  dialect?: SqlDialect    // 'sqlite' | 'mysql' | 'postgres'
+  dialect?: SqlDialect    // 'sqlite' | 'postgres' | 'mysql'
 }
 ```
 
@@ -445,7 +448,7 @@ const service = new Db0Service({
   db,
   table: 'users',
   idField: 'uuid',        // Custom primary key
-  dialect: 'postgres'     // SQL dialect for proper quoting
+  dialect: 'postgres'     // SQL dialect for proper quoting ('sqlite', 'postgres', or 'mysql')
 })
 ```
 
@@ -492,8 +495,9 @@ await service.find({ query: { status: { $nin: ['deleted', 'banned'] } } })
 await service.find({ query: { email: { $like: '%@gmail.com' } } })
 await service.find({ query: { name: { $like: 'John%' } } })
 
-// Case-insensitive pattern matching (SQL ILIKE)
-// Note: Falls back to LOWER() comparison on MySQL/SQLite
+// Case-insensitive pattern matching
+// PostgreSQL: Uses native ILIKE
+// MySQL/SQLite: Falls back to LOWER() comparison
 await service.find({ query: { name: { $ilike: '%smith%' } } })
 
 // Not like
@@ -584,6 +588,80 @@ await service.find({
 ```
 
 ## Advanced Features
+
+### MySQL Support
+
+The db0 adapter provides full MySQL support with automatic handling of MySQL limitations:
+
+```typescript
+import { Db0Service } from '@wingshq/db0'
+import { createDatabase } from 'db0'
+import mysql from 'db0/connectors/mysql2'
+
+// Standard MySQL connection
+const db = createDatabase(
+  mysql({
+    host: 'localhost',
+    port: 3306,
+    database: 'myapp',
+    user: 'root',
+    password: 'password'
+  })
+)
+
+// Create service with MySQL dialect
+const users = new Db0Service<User>({
+  db,
+  table: 'users',
+  dialect: 'mysql' // Important for MySQL-specific behavior
+})
+
+// Connection URL format
+const db = createDatabase(
+  mysql({
+    uri: 'mysql://user:password@localhost:3306/myapp'
+  })
+)
+
+// Connection pooling
+const db = createDatabase(
+  mysql({
+    host: 'localhost',
+    port: 3306,
+    database: 'myapp',
+    user: 'root',
+    password: 'password',
+    waitForConnections: true,
+    connectionLimit: 10,
+    queueLimit: 0
+  })
+)
+```
+
+#### MySQL-Specific Behavior
+
+The adapter automatically handles MySQL limitations:
+
+- **No RETURNING clause**: The adapter uses INSERT/UPDATE then SELECT pattern
+- **No LIMIT -1**: Uses MySQL's max BIGINT value for unlimited results
+- **Identifier quoting**: Uses backticks instead of double quotes
+- **Case-insensitive LIKE**: Uses `LOWER()` for `$ilike` operations
+
+```typescript
+// These operations work seamlessly despite MySQL limitations
+const user = await users.create({
+  name: 'John Doe',
+  email: 'john@example.com'
+})
+console.log(user.id) // Auto-generated ID retrieved after insert
+
+// Bulk operations also work correctly
+const updated = await users.patchMany(
+  { status: 'active' },
+  { query: { role: 'user' } }
+)
+console.log(updated) // All updated records retrieved
+```
 
 ### PostgreSQL Support
 
@@ -1059,6 +1137,7 @@ The db0 adapter is tested against multiple databases to ensure compatibility:
 
 - **SQLite**: Default for fast in-memory testing
 - **PostgreSQL**: Full SQL database testing with advanced features
+- **MySQL**: Complete MySQL 8+ compatibility with RETURNING clause workarounds
 
 ### Running Tests
 
@@ -1069,8 +1148,11 @@ npm test
 # Test with PostgreSQL
 TEST_DB=postgres npm test
 
-# Start PostgreSQL locally (requires Docker)
-docker-compose up -d postgres
+# Test with MySQL
+TEST_DB=mysql npm test
+
+# Start databases locally (requires Docker)
+docker-compose up -d postgres mysql
 ```
 
 ### Local PostgreSQL Setup
@@ -1091,9 +1173,22 @@ services:
       - "15432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+  
+  mysql:
+    image: mysql:8
+    environment:
+      MYSQL_ROOT_PASSWORD: mysql
+      MYSQL_DATABASE: feathers
+      MYSQL_USER: mysql
+      MYSQL_PASSWORD: mysql
+    ports:
+      - "23306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
 
 volumes:
   postgres_data:
+  mysql_data:
 ```
 
 ```bash
@@ -1124,26 +1219,52 @@ describe('UserService', () => {
   
   beforeEach(async () => {
     // Choose database based on environment
-    const db = process.env.TEST_DB === 'postgres' 
-      ? createDatabase(postgres({
+    let db: Database
+    let dialect: 'sqlite' | 'postgres' | 'mysql'
+    
+    switch (process.env.TEST_DB) {
+      case 'postgres':
+        db = createDatabase(postgres({
           host: 'localhost',
           port: 15432,
           database: 'feathers',
           user: 'postgres',
           password: 'postgres'
         }))
-      : createDatabase(
-          sqlite({ name: ':memory:' })
-        )
+        dialect = 'postgres'
+        break
+      
+      case 'mysql':
+        db = createDatabase(mysql({
+          host: 'localhost',
+          port: 23306,
+          database: 'feathers',
+          user: 'mysql',
+          password: 'mysql'
+        }))
+        dialect = 'mysql'
+        break
+      
+      default:
+        db = createDatabase(sqlite({ name: ':memory:' }))
+        dialect = 'sqlite'
+    }
     
     // Create schema (adjust for database type)
-    const dialect = process.env.TEST_DB === 'postgres' ? 'postgres' : 'sqlite'
     if (dialect === 'postgres') {
       await db.exec(`
         CREATE TABLE IF NOT EXISTS users (
           id SERIAL PRIMARY KEY,
           email TEXT UNIQUE NOT NULL,
           name TEXT
+        )
+      `)
+    } else if (dialect === 'mysql') {
+      await db.exec(`
+        CREATE TABLE IF NOT EXISTS users (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          email VARCHAR(255) UNIQUE NOT NULL,
+          name VARCHAR(255)
         )
       `)
     } else {

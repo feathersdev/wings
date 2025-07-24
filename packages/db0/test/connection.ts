@@ -3,6 +3,8 @@ import { createDatabase } from 'db0'
 import postgres from 'db0/connectors/postgresql'
 // @ts-expect-error - db0 connector types have issues with moduleResolution
 import sqlite from 'db0/connectors/better-sqlite3'
+// @ts-expect-error - db0 connector types have issues with moduleResolution
+import mysql from 'db0/connectors/mysql2'
 
 export interface TestDatabaseSetup {
   db: any
@@ -19,6 +21,18 @@ export const connection = (DB: string, testName?: string) => {
         database: 'feathers',
         user: 'postgres',
         password: 'postgres'
+      })
+    )
+  }
+
+  if (DB === 'mysql') {
+    return createDatabase(
+      mysql({
+        host: 'localhost',
+        port: 23306,
+        database: 'feathers',
+        user: 'mysql',
+        password: 'mysql'
       })
     )
   }
@@ -49,6 +63,18 @@ export async function createTestDatabase(testName: string): Promise<TestDatabase
       const createQuery = `
         CREATE TABLE ${tableName} (
           ${idField} SERIAL PRIMARY KEY,
+          name VARCHAR(255) NOT NULL,
+          age INTEGER,
+          time INTEGER,
+          created BOOLEAN,
+          email VARCHAR(255)
+        )
+      `
+      await db.exec(createQuery)
+    } else if (TYPE === 'mysql') {
+      const createQuery = `
+        CREATE TABLE ${tableName} (
+          ${idField} INTEGER AUTO_INCREMENT PRIMARY KEY,
           name VARCHAR(255) NOT NULL,
           age INTEGER,
           time INTEGER,

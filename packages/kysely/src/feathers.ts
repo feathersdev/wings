@@ -73,7 +73,7 @@ export class FeathersKyselyAdapter<
       throw new BadRequest('You can not replace multiple instances')
     }
 
-    // Full replacement - get existing record first
+    // Check if record exists with the given query constraints
     const existing = await this.get(id, params)
 
     // Replace with new data (preserving id)
@@ -83,7 +83,12 @@ export class FeathersKyselyAdapter<
       [idField]: (existing as any)[idField]
     } as PatchData
 
-    const result = await this.adapter.patch(id, updated, params)
+    // When updating, preserve $select but remove other query constraints for the patch
+    const patchParams = params?.query?.$select 
+      ? { ...params, query: { $select: params.query.$select } } 
+      : undefined
+
+    const result = await this.adapter.patch(id, updated, patchParams)
 
     if (result === null) {
       throw new NotFound(`No record found for id '${id}'`)

@@ -859,12 +859,47 @@ const user = await users.get(1) // Type: UserTable | null
 const allUsers = await users.find() // Type: UserTable[]
 ```
 
+## MySQL Support
+
+The Kysely adapter fully supports MySQL with automatic handling of MySQL-specific limitations:
+
+- **RETURNING clause**: MySQL doesn't support RETURNING, so the adapter automatically fetches records after insert/update/delete operations
+- **Auto-increment IDs**: Full support for auto-increment primary keys
+- **LIMIT syntax**: Automatically uses MySQL's maximum BIGINT value instead of -1 for unlimited queries
+- **Case-insensitive LIKE**: `$ilike` operator is emulated using `LOWER()` functions
+
+```typescript
+// MySQL configuration
+const db = new Kysely<Database>({
+  dialect: new MysqlDialect({
+    pool: mysql.createPool({
+      host: 'localhost',
+      port: 3306,
+      database: 'myapp',
+      user: 'root',
+      password: 'password'
+    })
+  })
+})
+
+// Create adapter with MySQL dialect
+const adapter = new KyselyAdapter({
+  Model: db,
+  table: 'users',
+  dialect: 'mysql'  // Important for MySQL-specific handling
+})
+
+// Works seamlessly with auto-increment
+const user = await adapter.create({ name: 'John' }) // ✅ Returns full record with ID
+```
+
 ## Testing
 
 The kysely adapter is tested against multiple databases:
 
 - **SQLite**: Default for fast in-memory testing
 - **PostgreSQL**: Full SQL database testing with advanced features
+- **MySQL**: Full MySQL 8.0 support with all features
 
 ### Running Tests
 
@@ -875,8 +910,11 @@ npm test
 # Test with PostgreSQL
 TEST_DB=postgres npm test
 
-# Start PostgreSQL locally (requires Docker)
-docker-compose up -d postgres
+# Test with MySQL
+TEST_DB=mysql npm test
+
+# Start databases locally (requires Docker)
+docker-compose up -d postgres mysql
 ```
 
 ### Local PostgreSQL Setup
