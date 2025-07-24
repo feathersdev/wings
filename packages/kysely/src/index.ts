@@ -1,9 +1,9 @@
 import {
+  AdapterBase,
   AdapterOptions,
   AdapterParams,
   AdapterQuery,
   Paginated,
-  WingsAdapterInterface,
   Primitive
 } from '@wingshq/adapter-commons'
 import { GeneralError, BadRequest } from '@feathersjs/errors'
@@ -36,21 +36,22 @@ export class KyselyAdapter<
   PatchData = Partial<Result>,
   Options extends KyselyOptions = KyselyOptions,
   Params extends KyselyParams = KyselyParams
-> implements WingsAdapterInterface<Result, Data, PatchData, KyselyOptions, KyselyParams>
-{
+> extends AdapterBase<Result, Data, PatchData, Options, Params> {
   // Future: implement query caching
   // private queryCache: Map<string, any> = new Map()
 
-  constructor(public options: Options) {
-    if (!options.Model) {
+  constructor(settings: Options) {
+    super(settings)
+
+    if (!this.options.Model) {
       throw new Error('Kysely adapter: Model option is required')
     }
-    if (!options.table) {
+    if (!this.options.table) {
       throw new Error('Kysely adapter: table option is required')
     }
 
     // Enable query logging if debug is true
-    if (options.debug) {
+    if (this.options.debug) {
       this.enableQueryLogging()
     }
   }
@@ -126,10 +127,6 @@ export class KyselyAdapter<
 
   get supportsReturning() {
     return this.dialect !== 'mysql'
-  }
-
-  get id() {
-    return this.options.id || 'id'
   }
 
   // Convert boolean values to integers for SQLite
@@ -653,9 +650,7 @@ export class KyselyAdapter<
 
   async patch(id: Primitive, data: PatchData, params?: Params): Promise<Result | null> {
     // Wings safety: prevent accidental bulk operations
-    if (id === null || id === undefined) {
-      throw new BadRequest('patch() requires a non-null id. Use patchMany() for bulk operations.')
-    }
+    this.validateNonNullId(id, 'patch')
 
     const { query = {} } = (params || {}) as any
     const db = this.getDb(params)
@@ -722,9 +717,7 @@ export class KyselyAdapter<
     delete filters.$skip
     delete filters.$sort
 
-    if (Object.keys(filters).length === 0 && !allowAll) {
-      throw new BadRequest('patchMany: No query provided. Use allowAll:true to patch all records')
-    }
+    this.validateBulkParams(filters, allowAll, 'patch')
 
     // Convert boolean values to integers for SQLite
     const patchData = this.convertBooleansForSQLite(data)
@@ -759,9 +752,7 @@ export class KyselyAdapter<
 
   async remove(id: Primitive, params?: Params): Promise<Result | null> {
     // Wings safety: prevent accidental bulk operations
-    if (id === null || id === undefined) {
-      throw new BadRequest('remove() requires a non-null id. Use removeMany() for bulk operations.')
-    }
+    this.validateNonNullId(id, 'remove')
 
     const { query = {} } = (params || {}) as any
     const db = this.getDb(params)
@@ -809,9 +800,7 @@ export class KyselyAdapter<
     delete filters.$skip
     delete filters.$sort
 
-    if (Object.keys(filters).length === 0 && !allowAll) {
-      throw new BadRequest('removeMany: No query provided. Use allowAll:true to remove all records')
-    }
+    this.validateBulkParams(filters, allowAll, 'remove')
 
     let qb = db.deleteFrom(this.table)
 

@@ -1,5 +1,6 @@
 import type { Database, Primitive } from 'db0'
-import { GeneralError, BadRequest } from '@feathersjs/errors'
+import { GeneralError } from '@feathersjs/errors'
+import { AdapterBase, type AdapterOptions } from '@wingshq/adapter-commons'
 import { errorHandler } from './error-handler'
 
 // Allow db0 identifier objects as sql arguments
@@ -66,12 +67,20 @@ export interface Db0AdapterOptions {
   dialect?: SqlDialect
 }
 
-export class Db0Adapter<RT extends DbRecord> {
+// Internal options type that extends AdapterOptions for base class compatibility
+interface Db0InternalOptions extends AdapterOptions, Db0AdapterOptions {}
+
+export class Db0Adapter<RT extends DbRecord> extends AdapterBase<
+  RT,
+  Partial<RT>,
+  Partial<RT>,
+  Db0InternalOptions,
+  Db0Params
+> {
   db: Database
   table: string
   idField: string
   dialect: SqlDialect
-  options: Db0AdapterOptions
 
   // Dialect-specific utilities
   private static dialectUtils = {
@@ -102,19 +111,14 @@ export class Db0Adapter<RT extends DbRecord> {
   private utils: typeof Db0Adapter.dialectUtils.mysql
 
   constructor(options: Db0AdapterOptions) {
+    super({ id: options.idField || 'id', ...options })
     this.db = options.db
     this.table = options.table
     this.idField = options.idField || 'id'
     this.dialect = options.dialect || 'sqlite'
-    this.options = options
 
     // Select the appropriate utilities based on dialect
     this.utils = Db0Adapter.dialectUtils[this.dialect]
-  }
-
-  // FeathersJS compatibility: provide id property
-  get id() {
-    return this.idField
   }
 
   /**
@@ -374,9 +378,9 @@ export class Db0Adapter<RT extends DbRecord> {
     return (rows[0] ?? null) as RT | null
   }
 
-  private async createOne(data: Record<string, Primitive>): Promise<RT> {
+  private async createOne(data: Partial<RT>): Promise<RT> {
     const fields = Object.keys(data)
-    const values = fields.map((f) => this.convertValue(data[f]))
+    const values = fields.map((f) => this.convertValue((data as any)[f]))
     const columns = fields.map((f) => Db0Adapter.quoteId(f, this.dialect)).join(', ')
     const placeholders = fields.map(() => '?').join(', ')
 
@@ -414,15 +418,15 @@ export class Db0Adapter<RT extends DbRecord> {
     }
   }
 
-  private async createMany(data: Array<Record<string, Primitive>>): Promise<RT[]> {
+  private async createMany(data: Array<Partial<RT>>): Promise<RT[]> {
     if (!data.length) return []
     const fields = Array.from(new Set(data.flatMap(Object.keys)))
     const columns = fields.map((f: string) => Db0Adapter.quoteId(f, this.dialect)).join(', ')
 
     // For each row, ensure every field is present, fill missing with null
     const rowPlaceholders = data.map(() => `(${fields.map(() => '?').join(', ')})`).join(', ')
-    const allValues = data.flatMap((row: Record<string, Primitive>) =>
-      fields.map((f: string) => this.convertValue(row[f] ?? null))
+    const allValues = data.flatMap((row: Partial<RT>) =>
+      fields.map((f: string) => this.convertValue((row as any)[f] ?? null))
     )
 
     const sql = `INSERT INTO ${Db0Adapter.quoteId(
@@ -460,9 +464,9 @@ export class Db0Adapter<RT extends DbRecord> {
    * @param data - A single record or an array of records to insert.
    * @returns The created record(s).
    */
-  async create(data: Record<string, Primitive>): Promise<RT>
-  async create(data: Array<Record<string, Primitive>>): Promise<RT[]>
-  async create(data: Record<string, Primitive> | Array<Record<string, Primitive>>): Promise<RT | RT[]> {
+  async create(data: Partial<RT>): Promise<RT>
+  async create(data: Array<Partial<RT>>): Promise<RT[]>
+  async create(data: Partial<RT> | Array<Partial<RT>>): Promise<RT | RT[]> {
     if (Array.isArray(data)) {
       return this.createMany(data)
     } else {
@@ -477,17 +481,15 @@ export class Db0Adapter<RT extends DbRecord> {
    * @param params - Query parameters including $select and additional conditions.
    * @returns The updated record, or null if not found.
    */
-  async patch(id: Primitive, data: Record<string, Primitive>, params?: Db0Params): Promise<RT | null> {
+  async patch(id: Primitive, data: Partial<RT>, params?: Db0Params): Promise<RT | null> {
     // Wings safety: prevent accidental bulk operations
-    if (id === null || id === undefined) {
-      throw new BadRequest('patch() requires a non-null id. Use patchMany() for bulk operations.')
-    }
+    this.validateNonNullId(id, 'patch')
 
     const fields = Object.keys(data)
     if (!fields.length) return this.get(id, params)
 
     const assignments = fields.map((f) => `${Db0Adapter.quoteId(f, this.dialect)} = ?`).join(', ')
-    const values = fields.map((f) => this.convertValue(data[f]))
+    const values = fields.map((f) => this.convertValue((data as any)[f]))
 
     // Use buildWhereClause to handle both id and additional query conditions
     const { sql: whereClause, values: whereValues } = this.buildWhereClause(params?.query || {}, id)
@@ -554,10 +556,9 @@ export class Db0Adapter<RT extends DbRecord> {
    * @param params - Query and options for the patch operation.
    * @returns Array of updated records.
    */
-  async patchMany(data: Record<string, Primitive>, params?: Db0ParamsMany): Promise<RT[]> {
+  async patchMany(data: Partial<RT>, params?: Db0ParamsMany): Promise<RT[]> {
     const query = params?.query || {}
-    if (!query || (Object.keys(query).length === 0 && !params?.allowAll))
-      throw new GeneralError('patchMany: No query provided. Use allowAll:true to patch all records')
+    this.validateBulkParams(query, params?.allowAll, 'patch')
 
     let columns = '*'
     columns = this._getSelectColumns(query)
@@ -565,7 +566,7 @@ export class Db0Adapter<RT extends DbRecord> {
     const fields = Object.keys(data)
     if (!fields.length) return []
     const assignments = fields.map((f) => `${Db0Adapter.quoteId(f, this.dialect)} = ?`).join(', ')
-    const setValues = fields.map((f) => this.convertValue(data[f]))
+    const setValues = fields.map((f) => this.convertValue((data as any)[f]))
 
     const sql = `UPDATE ${Db0Adapter.quoteId(this.table, this.dialect)} SET ${assignments} ${
       whereSql ? 'WHERE ' + whereSql : ''
@@ -595,9 +596,7 @@ export class Db0Adapter<RT extends DbRecord> {
    */
   async remove(id: Primitive, params?: Db0Params): Promise<RT | null> {
     // Wings safety: prevent accidental bulk operations
-    if (id === null || id === undefined) {
-      throw new BadRequest('remove() requires a non-null id. Use removeMany() for bulk operations.')
-    }
+    this.validateNonNullId(id, 'remove')
 
     let columns = '*'
     const query = params?.query ? { ...params.query } : {}
@@ -628,10 +627,7 @@ export class Db0Adapter<RT extends DbRecord> {
    */
   async removeMany(params?: Db0ParamsMany): Promise<RT[]> {
     const query = params?.query || {}
-    if (!query || (Object.keys(query).length === 0 && !params?.allowAll))
-      throw new GeneralError(
-        'removeMany: No query provided. Use allowAll:true or call removeAll() to remove all records'
-      )
+    this.validateBulkParams(query, params?.allowAll, 'remove')
 
     const items = await this.find({ query })
     if (!Array.isArray(items) || !items.length) return []

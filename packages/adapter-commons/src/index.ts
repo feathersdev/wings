@@ -2,6 +2,7 @@ import { _ } from '@feathersjs/commons'
 
 export * from './declarations'
 export * from './sort'
+export * from './adapter-base'
 
 // Return a function that filters a result object or array
 // and picks only the fields passed as `params.query.$select`

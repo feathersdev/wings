@@ -27,9 +27,11 @@ export interface FeathersServiceInterface<T> {
  */
 export class FeathersDb0Adapter<T extends DbRecord> implements FeathersServiceInterface<T> {
   private wingsAdapter: Db0Adapter<T>
+  private _options: Db0AdapterOptions
 
   constructor(options: Db0AdapterOptions) {
     this.wingsAdapter = db0Adapter<T>(options)
+    this._options = options
   }
 
   get id() {
@@ -37,7 +39,7 @@ export class FeathersDb0Adapter<T extends DbRecord> implements FeathersServiceIn
   }
 
   get options() {
-    return this.wingsAdapter.options
+    return this._options
   }
 
   /**

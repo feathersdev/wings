@@ -47,6 +47,7 @@
   },
   "dependencies": {
     "@feathersjs/errors": "^5.0.34",
+    "@wingshq/adapter-commons": "workspace:*",
     "@wingshq/adapter-tests": "workspace:*",
     "db0": "^0.3.2"
   },

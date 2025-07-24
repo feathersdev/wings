@@ -27,6 +27,6 @@ export default tseslint.config(
     },
   },
   {
-    ignores: ['**/lib/', '**/esm/', '**/dist/', '**/node_modules/'],
+    ignores: ['**/lib/', '**/esm/', '**/dist/', '**/node_modules/', 'test/cf-worker/**'],
   }
 )

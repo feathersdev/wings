@@ -12,17 +12,17 @@ import {
   Filter
 } from 'mongodb'
 import {
-  WingsAdapterInterface,
   AdapterOptions,
   AdapterParams,
   AdapterQuery,
   Id,
   Paginated,
   select,
-  Primitive
+  Primitive,
+  AdapterBase
 } from '@wingshq/adapter-commons'
 import { _ } from '@feathersjs/commons'
-import { BadRequest, GeneralError } from '@feathersjs/errors'
+import { GeneralError } from '@feathersjs/errors'
 
 export interface MongodbOptions extends AdapterOptions {
   Model: Collection | Promise<Collection>
@@ -67,19 +67,12 @@ export class MongodbAdapter<
   Data = Partial<Result>,
   PatchData = Partial<Data>,
   Params extends MongodbParams<Result> = MongodbParams<Result>
-> implements WingsAdapterInterface<Result, Data, PatchData, MongodbOptions, Params>
-{
-  options: MongodbOptions
-
+> extends AdapterBase<Result, Data, PatchData, MongodbOptions, Params> {
   constructor(settings: MongodbSettings) {
-    this.options = {
+    super({
       id: '_id',
       ...settings
-    }
-  }
-
-  get id() {
-    return this.options.id
+    })
   }
 
   getModel(params?: Params) {
@@ -98,7 +91,7 @@ export class MongodbAdapter<
     return id
   }
 
-  convertSqlLikeOperators(query: any): any {
+  protected convertSqlLikeOperators(query: any): any {
     if (!query || typeof query !== 'object') {
       return query
     }
@@ -167,28 +160,34 @@ export class MongodbAdapter<
     return converted
   }
 
-  filterQuery(id: AdapterId | null, params?: Params) {
-    const { $select, $sort, $limit, $skip = 0, ..._query } = (params?.query || {}) as AdapterQuery<Result>
-    const query = this.convertSqlLikeOperators(_query) as { [key: string]: any }
+  protected filterQuery(params?: Params) {
+    const { $select, $sort, $limit, $skip = 0, ...query } = params?.query || {}
+    const convertedQuery = this.convertSqlLikeOperators(query) as { [key: string]: any }
 
-    if (id !== null) {
-      query.$and = (query.$and || []).concat({
-        [this.id]: this.getObjectId(id)
-      })
-    }
-
-    if (query[this.id]) {
-      query[this.id] = this.getObjectId(query[this.id])
+    if (convertedQuery[this.id]) {
+      convertedQuery[this.id] = this.getObjectId(convertedQuery[this.id])
     }
 
     return {
       filters: { $select, $sort, $limit, $skip },
-      query
+      query: convertedQuery
     }
   }
 
+  // Helper method to filter query with ID constraint
+  private filterQueryWithId(id: AdapterId, params?: Params) {
+    const { filters, query } = this.filterQuery(params)
+    const queryWithId = {
+      ...query,
+      $and: (query.$and || []).concat({
+        [this.id]: this.getObjectId(id)
+      })
+    }
+    return { filters, query: queryWithId }
+  }
+
   async findRaw(params?: Params) {
-    const { filters, query } = this.filterQuery(null, params)
+    const { filters, query } = this.filterQuery(params)
     const model = await this.getModel(params)
     const q = model.find(query, { ...params?.mongodb })
 
@@ -247,7 +246,7 @@ export class MongodbAdapter<
   // Creates the pipeline stages for Wings/Feathers query parameters
   // Used when $wings or $feathers stage is specified in aggregation pipeline
   makeFeathersPipeline(params?: Params) {
-    const { filters, query } = this.filterQuery(null, params)
+    const { filters, query } = this.filterQuery(params)
     const pipeline: Document[] = [{ $match: query }]
 
     if (filters.$select !== undefined) {
@@ -312,7 +311,7 @@ export class MongodbAdapter<
   async find(params?: Params & { paginate?: false }): Promise<Result[]>
   async find(params: Params & { paginate: true }): Promise<Paginated<Result>>
   async find(params?: Params & { paginate?: boolean }): Promise<Result[] | Paginated<Result>> {
-    const { filters, query } = this.filterQuery(null, params)
+    const { filters, query } = this.filterQuery(params)
     const useAggregation = params?.pipeline || (!params?.mongodb && filters.$limit !== 0)
     const countDocuments = async () => {
       if (params?.paginate) {
@@ -338,12 +337,7 @@ export class MongodbAdapter<
     const data = filters.$limit === 0 ? [] : ((await request.toArray()) as any as Result[])
 
     if (params?.paginate) {
-      return {
-        total,
-        limit: filters.$limit || 0,
-        skip: filters.$skip || 0,
-        data
-      }
+      return this.buildPaginatedResult(data, total, filters)
     }
 
     return data
@@ -353,7 +347,7 @@ export class MongodbAdapter<
     const {
       query,
       filters: { $select }
-    } = this.filterQuery(id as AdapterId, params)
+    } = this.filterQueryWithId(id as AdapterId, params)
     const projection = $select
       ? {
           projection: {
@@ -412,9 +406,7 @@ export class MongodbAdapter<
   }
 
   async patch(id: Primitive, data: PatchData, params?: Params): Promise<Result | null> {
-    if (id === null || id === undefined) {
-      throw new BadRequest('patch() requires a non-null id. Use patchMany() for bulk updates.')
-    }
+    this.validateNonNullId(id, 'patch')
     return this._patchSingle(id as Id, data, params)
   }
 
@@ -424,7 +416,7 @@ export class MongodbAdapter<
     const {
       query,
       filters: { $select }
-    } = this.filterQuery(id, params)
+    } = this.filterQueryWithId(id, params)
     const updateOptions = { ...params?.mongodb }
     const modifier = Object.keys(data).reduce((current, key) => {
       const value = (data as any)[key]
@@ -465,18 +457,14 @@ export class MongodbAdapter<
   }
 
   async patchMany(data: PatchData, params: Params & { allowAll?: boolean }): Promise<Result[]> {
-    if (!params.query && !params.allowAll) {
-      throw new BadRequest(
-        'No query provided and allowAll is not set. Use allowAll: true to update all records.'
-      )
-    }
-
-    const normalizedData = this.normalizeId(null, data)
-    const model = await this.getModel(params)
     const {
       query,
       filters: { $select }
-    } = this.filterQuery(null, params)
+    } = this.filterQuery(params)
+    this.validateBulkParams(query, params.allowAll, 'update')
+
+    const normalizedData = this.normalizeId(null, data)
+    const model = await this.getModel(params)
     const updateOptions = { ...params?.mongodb }
     const modifier = Object.keys(normalizedData).reduce((current, key) => {
       const value = (normalizedData as any)[key]
@@ -518,9 +506,7 @@ export class MongodbAdapter<
   }
 
   async remove(id: Primitive, params?: Params): Promise<Result | null> {
-    if (id === null || id === undefined) {
-      throw new BadRequest('remove() requires a non-null id. Use removeMany() for bulk removals.')
-    }
+    this.validateNonNullId(id, 'remove')
     return this._removeSingle(id as Id, params)
   }
 
@@ -529,7 +515,7 @@ export class MongodbAdapter<
     const {
       query,
       filters: { $select }
-    } = this.filterQuery(id, params)
+    } = this.filterQueryWithId(id, params)
     const deleteOptions = { ...params?.mongodb }
 
     // Get the document that will be deleted (with proper field selection)
@@ -553,17 +539,13 @@ export class MongodbAdapter<
   }
 
   async removeMany(params: Params & { allowAll?: boolean }): Promise<Result[]> {
-    if (!params.query && !params.allowAll) {
-      throw new BadRequest(
-        'No query provided and allowAll is not set. Use allowAll: true to remove all records.'
-      )
-    }
-
-    const model = await this.getModel(params)
     const {
       query,
       filters: { $select }
-    } = this.filterQuery(null, params)
+    } = this.filterQuery(params)
+    this.validateBulkParams(query, params.allowAll, 'remove')
+
+    const model = await this.getModel(params)
     const deleteOptions = { ...params?.mongodb }
     const findParams = {
       ...params,

@@ -124,6 +124,9 @@ importers:
       '@feathersjs/errors':
         specifier: ^5.0.34
         version: 5.0.34
+      '@wingshq/adapter-commons':
+        specifier: workspace:*
+        version: link:../adapter-commons
       '@wingshq/adapter-tests':
         specifier: workspace:*
         version: link:../adapter-tests

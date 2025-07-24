@@ -86,6 +86,24 @@ This ensures:
 
 Wings is a TypeScript monorepo that provides universal database adapters. The core architectural principle is to provide a unified interface (`AdapterInterface`) that works across different databases.
 
+### AdapterBase Class
+
+All Wings adapters extend the `AdapterBase` class from `@wingshq/adapter-commons`, which provides common functionality:
+
+- **Validation Methods**: 
+  - `validateNonNullId()` - Ensures IDs are not null/undefined for single operations
+  - `validateBulkParams()` - Validates bulk operation parameters and allowAll flag
+- **Query Handling**:
+  - `filterQuery()` - Separates query operators ($limit, $skip, etc.) from filters
+  - `convertSqlLikeOperators()` - Converts SQL-like operators for non-SQL databases
+- **Result Building**:
+  - `buildPaginatedResult()` - Creates consistent paginated response objects
+- **Base Properties**:
+  - `options` - Adapter configuration
+  - `id` - Primary key field name getter
+
+Adapters can override any of these methods for database-specific behavior while maintaining consistent interfaces.
+
 ### Key Interfaces (FeathersJS)
 
 All adapters implement the `AdapterInterface` from `@wingshq/adapter-commons`:
@@ -96,6 +114,23 @@ All adapters implement the `AdapterInterface` from `@wingshq/adapter-commons`:
 - `update()`: Replace entire record (throws NotFound if not found)
 - `patch()`: Partially update record(s) (throws NotFound if not found)
 - `remove()`: Delete record(s) (throws NotFound if not found)
+
+### AdapterBase Class
+
+All Wings adapters extend the `AdapterBase` class from `@wingshq/adapter-commons`, which provides:
+
+**Common Functionality:**
+- `filterQuery()` - Separates query operators from the actual query
+- `validateNonNullId()` - Validates IDs for single operations
+- `validateBulkParams()` - Validates bulk operations with safety controls
+- `buildPaginatedResult()` - Creates paginated result objects
+- `convertSqlLikeOperators()` - Converts SQL-like operators for non-SQL databases
+
+**Benefits:**
+- Reduces code duplication across adapters
+- Ensures consistent validation and error messages
+- Provides common query processing logic
+- Simplifies adapter implementation
 
 ### Key Interfaces (Wings)
 
@@ -157,8 +192,12 @@ Wings uses "OmniQuery Syntax" - a standardized query format across all adapters:
 
 1. Run `npm run generate:adapter` from root
 2. Extend `AdapterBase` from `@wingshq/adapter-commons`
-3. Implement required methods following existing adapter patterns
-4. Use `@wingshq/adapter-tests` to validate implementation
+3. Implement abstract methods (find, get, create, patch, patchMany, remove, removeMany, removeAll)
+4. Override base methods only when database-specific behavior is needed:
+   - Override `filterQuery()` if your database needs special query handling (like MongoDB's ObjectId conversion)
+   - Override `convertSqlLikeOperators()` if your database has native support for SQL-like operators
+5. Use inherited validation methods (`validateNonNullId`, `validateBulkParams`) for consistent error handling
+6. Use `@wingshq/adapter-tests` to validate implementation
 
 ### Testing Approach
 
@@ -308,18 +347,20 @@ Each existing adapter needs to be updated to implement the new Wings interface:
 - [x] **BONUS**: Centralized testing with `adapter-tests` package integration
 - [x] **BONUS**: Advanced SQL-like query operator conversion to MongoDB equivalents
 
-#### Memory Adapter (`@wingshq/memory`):
+#### ✅ Memory Adapter (`@wingshq/memory`) - COMPLETED:
 
-- [ ] Update `find()` method signature with TypeScript overloads for pagination support
-- [ ] Update `get()`, `patch()`, `remove()` to return `null` instead of throwing on not-found
-- [ ] Remove `update()` method implementation
-- [ ] Add `patchMany(data, params)` method with `allowAll` safety control
-- [ ] Add `removeMany(params)` method with `allowAll` safety control
-- [ ] Add `removeAll()` method
-- [ ] Add support for `$like`, `$ilike`, `$isNull` query operators where applicable
-- [ ] Implement in-memory equivalents for `$like` (string includes/regex matching)
-- [ ] Implement in-memory equivalents for `$ilike` (case-insensitive matching)
-- [ ] Implement in-memory equivalents for `$isNull` (null/undefined checks)
+- [x] Update `find()` method signature with TypeScript overloads for pagination support
+- [x] Update `get()`, `patch()`, `remove()` to return `null` instead of throwing on not-found
+- [x] Remove `update()` method implementation
+- [x] Add `patchMany(data, params)` method with `allowAll` safety control
+- [x] Add `removeMany(params)` method with `allowAll` safety control
+- [x] Add `removeAll()` method
+- [x] Add support for `$like`, `$ilike`, `$isNull` query operators where applicable
+- [x] Implement in-memory equivalents for `$like` (string includes/regex matching)
+- [x] Implement in-memory equivalents for `$ilike` (case-insensitive matching)
+- [x] Implement in-memory equivalents for `$isNull` (null/undefined checks)
+- [x] **BONUS**: Extends AdapterBase for consistent validation and common functionality
+- [x] **BONUS**: Uses base class convertSqlLikeOperators for SQL-like query conversion
 
 ### 3. Verification
 

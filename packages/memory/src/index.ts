@@ -1,8 +1,7 @@
-import { BadRequest } from '@feathersjs/errors'
 import { _ } from '@feathersjs/commons'
 import sift from 'sift'
 import {
-  WingsAdapterInterface,
+  AdapterBase,
   AdapterOptions,
   AdapterParams,
   Paginated,
@@ -67,14 +66,12 @@ export class MemoryAdapter<
   Data = Partial<Result>,
   PatchData = Partial<Data>,
   Params extends MemoryParams<Result> = MemoryParams<Result>
-> implements WingsAdapterInterface<Result, Data, PatchData, MemoryOptions<Result>, Params>
-{
-  options: MemoryOptions<Result>
+> extends AdapterBase<Result, Data, PatchData, MemoryOptions<Result>, Params> {
   Model: MemoryStore<Result>
   _uId: number
 
   constructor(options: MemorySettings<Result> = {}) {
-    this.options = {
+    const settings = {
       id: 'id',
       matcher: sift,
       sorter,
@@ -82,87 +79,20 @@ export class MemoryAdapter<
       startId: 0,
       ...options
     }
+    super(settings)
     this._uId = this.options.startId
     this.Model = { ...this.options.Model }
   }
 
-  get id() {
-    return this.options.id
-  }
-
-  convertSqlLikeOperators(query: any): any {
-    if (!query || typeof query !== 'object') {
-      return query
-    }
-
-    const converted = { ...query }
-
-    // Convert all keys recursively
-    Object.keys(converted).forEach((key) => {
-      const value = converted[key]
-
-      if (value && typeof value === 'object') {
-        if (Array.isArray(value)) {
-          // Handle arrays (like $or, $and)
-          converted[key] = value.map((item) => this.convertSqlLikeOperators(item))
-        } else {
-          // Handle nested objects
-          const convertedValue = { ...value }
-          Object.keys(convertedValue).forEach((op) => {
-            const opValue = convertedValue[op]
-
-            if (op === '$like' && typeof opValue === 'string') {
-              delete convertedValue[op]
-              // Convert SQL LIKE pattern to regex
-              const regexPattern = opValue
-                .replace(/([.+*?^${}()|[\]\\])/g, '\\$1') // Escape regex special chars
-                .replace(/%/g, '.*') // Convert % to .*
-                .replace(/_/g, '.') // Convert _ to .
-              convertedValue.$regex = new RegExp(`^${regexPattern}$`)
-            } else if (op === '$notlike' && typeof opValue === 'string') {
-              delete convertedValue[op]
-              // Convert SQL NOT LIKE pattern to not regex
-              const regexPattern = opValue
-                .replace(/([.+*?^${}()|[\]\\])/g, '\\$1') // Escape regex special chars
-                .replace(/%/g, '.*') // Convert % to .*
-                .replace(/_/g, '.') // Convert _ to .
-              convertedValue.$not = new RegExp(`^${regexPattern}$`)
-            } else if (op === '$ilike' && typeof opValue === 'string') {
-              delete convertedValue[op]
-              // Convert SQL ILIKE pattern to case-insensitive regex
-              const regexPattern = opValue
-                .replace(/([.+*?^${}()|[\]\\])/g, '\\$1') // Escape regex special chars
-                .replace(/%/g, '.*') // Convert % to .*
-                .replace(/_/g, '.') // Convert _ to .
-              convertedValue.$regex = new RegExp(`^${regexPattern}$`, 'i')
-            } else if (op === '$isNull') {
-              delete convertedValue[op]
-              if (opValue === true) {
-                // Find fields that are null or undefined
-                convertedValue.$eq = null
-              } else if (opValue === false) {
-                // Find fields that are not null
-                convertedValue.$ne = null
-              }
-            }
-          })
-          converted[key] = convertedValue
-        }
-      }
-    })
-
-    return converted
-  }
-
   getQuery(params?: Params) {
-    const { $skip, $sort, $limit, $select, ...query } = params?.query || {}
+    const { filters, query } = this.filterQuery(params)
 
     // Convert SQL-like operators to sift-compatible format
     const convertedQuery = this.convertSqlLikeOperators(query)
 
     return {
       query: convertedQuery,
-      filters: { $skip, $sort, $limit, $select }
+      filters
     }
   }
 
@@ -175,27 +105,22 @@ export class MemoryAdapter<
     let values = _.values(Model).filter(this.options.matcher(query))
     const total = values.length
 
-    if (filters.$sort !== undefined) {
+    if (filters.$sort) {
       values.sort(this.options.sorter(filters.$sort))
     }
 
-    if (filters.$skip !== undefined) {
+    if (filters.$skip) {
       values = values.slice(filters.$skip)
     }
 
-    if (filters.$limit !== undefined) {
+    if (filters.$limit !== null && filters.$limit !== undefined) {
       values = values.slice(0, filters.$limit)
     }
 
     const data = values.map((value) => _select(value, params, this.id))
 
     if (params?.paginate) {
-      return {
-        total,
-        limit: filters.$limit || 0,
-        skip: filters.$skip || 0,
-        data
-      }
+      return this.buildPaginatedResult(data, total, filters)
     }
 
     return data
@@ -235,9 +160,7 @@ export class MemoryAdapter<
   }
 
   async patch(id: Primitive, data: PatchData, params?: Params): Promise<Result | null> {
-    if (id === null || id === undefined) {
-      throw new BadRequest('patch() requires a non-null id. Use patchMany() for bulk updates.')
-    }
+    this.validateNonNullId(id, 'patch')
 
     const { Model = this.Model } = params || {}
     const entry = await this.get(id, params)
@@ -253,11 +176,8 @@ export class MemoryAdapter<
   }
 
   async patchMany(data: PatchData, params: Params & { allowAll?: boolean }): Promise<Result[]> {
-    if (!params.query && !params.allowAll) {
-      throw new BadRequest(
-        'No query provided and allowAll is not set. Use allowAll: true to update all records.'
-      )
-    }
+    const { query } = this.filterQuery(params)
+    this.validateBulkParams(query, params.allowAll, 'update')
 
     const { Model = this.Model } = params || {}
     const entries = await this.find({
@@ -273,9 +193,7 @@ export class MemoryAdapter<
   }
 
   async remove(id: Primitive, params?: Params): Promise<Result | null> {
-    if (id === null || id === undefined) {
-      throw new BadRequest('remove() requires a non-null id. Use removeMany() for bulk removals.')
-    }
+    this.validateNonNullId(id, 'remove')
 
     const { Model = this.Model } = params || {}
     const entry = await this.get(id, params)
@@ -290,11 +208,8 @@ export class MemoryAdapter<
   }
 
   async removeMany(params: Params & { allowAll?: boolean }): Promise<Result[]> {
-    if (!params.query && !params.allowAll) {
-      throw new BadRequest(
-        'No query provided and allowAll is not set. Use allowAll: true to remove all records.'
-      )
-    }
+    const { query } = this.filterQuery(params)
+    this.validateBulkParams(query, params.allowAll, 'remove')
 
     const { Model = this.Model } = params || {}
     const entries = await this.find({

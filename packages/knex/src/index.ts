@@ -4,13 +4,13 @@ import {
   AdapterQuery,
   Primitive,
   Paginated,
-  WingsAdapterInterface
+  AdapterBase
 } from '@wingshq/adapter-commons'
 import { _ } from '@feathersjs/commons'
 import { Knex } from 'knex'
 import { errorHandler } from './error-handler'
 import { extractCountValue, safeQueryExecution, createFullTableName } from './utils'
-import { validateNonNullId, validateBulkParams, validateAdapterSettings } from './validation'
+import { validateAdapterSettings } from './validation'
 import {
   handleSpecialOperators,
   handleComplexOperators,
@@ -46,19 +46,12 @@ export interface KnexParams<T = AdapterQuery<any>> extends AdapterParams<T> {
 const RETURNING_CLIENTS = ['postgresql', 'pg', 'oracledb', 'mssql']
 
 export class KnexAdapter<T extends Record<string, any> = any>
-  implements
-    WingsAdapterInterface<T, Partial<T>, Partial<T>, KnexOptions, KnexParams>,
-    BulkOperationHelpers<T>
+  extends AdapterBase<T, Partial<T>, Partial<T>, KnexOptions, KnexParams>
+  implements BulkOperationHelpers<T>
 {
-  options: KnexOptions
-
   constructor(settings: KnexSettings) {
     validateAdapterSettings(settings)
-    this.options = { id: 'id', ...settings }
-  }
-
-  get id() {
-    return this.options.id
+    super(settings)
   }
 
   get fullName() {
@@ -159,15 +152,6 @@ export class KnexAdapter<T extends Record<string, any> = any>
     }
   }
 
-  filterQuery(params?: KnexParams) {
-    const { $select, $sort, $limit = null, $skip = 0, ...query } = params?.query || {}
-
-    return {
-      filters: { $select: $select as string[] | undefined, $sort, $limit, $skip },
-      query
-    }
-  }
-
   async find(params: KnexParams & { paginate: true }): Promise<Paginated<T>>
   async find(params?: KnexParams & { paginate?: false }): Promise<T[]>
   async find(params?: KnexParams): Promise<T[] | Paginated<T>> {
@@ -192,12 +176,7 @@ export class KnexAdapter<T extends Record<string, any> = any>
 
     if (paginate) {
       const total = await this.getCount(builder, name, id)
-      return {
-        total,
-        limit: filters.$limit || 0,
-        skip: filters.$skip || 0,
-        data
-      }
+      return this.buildPaginatedResult(data, total, filters)
     }
 
     return data
@@ -260,7 +239,7 @@ export class KnexAdapter<T extends Record<string, any> = any>
   }
 
   async patch(id: Primitive, data: Partial<T>, params?: KnexParams): Promise<T | null> {
-    validateNonNullId(id, 'patch')
+    this.validateNonNullId(id, 'patch')
 
     const { name, id: idField } = this.getOptions(params)
     const patchData = _.omit(data, this.id)
@@ -283,7 +262,7 @@ export class KnexAdapter<T extends Record<string, any> = any>
   }
 
   async patchMany(data: Partial<T>, params: KnexParams & { allowAll?: boolean }): Promise<T[]> {
-    validateBulkParams(params.query, params.allowAll, 'update')
+    this.validateBulkParams(params.query, params.allowAll, 'update')
 
     const { items: _items, idList } = await findItemsForBulkOperation(this, params)
     if (idList.length === 0) return []
@@ -293,7 +272,7 @@ export class KnexAdapter<T extends Record<string, any> = any>
   }
 
   async remove(id: Primitive, params?: KnexParams): Promise<T | null> {
-    validateNonNullId(id, 'remove')
+    this.validateNonNullId(id, 'remove')
 
     const existing = await this.get(id, params)
     if (!existing) return null
@@ -304,7 +283,7 @@ export class KnexAdapter<T extends Record<string, any> = any>
   }
 
   async removeMany(params: KnexParams & { allowAll?: boolean }): Promise<T[]> {
-    validateBulkParams(params.query, params.allowAll, 'remove')
+    this.validateBulkParams(params.query, params.allowAll, 'remove')
 
     const { items } = await findItemsForBulkOperation(this, params)
     if (items.length === 0) return []

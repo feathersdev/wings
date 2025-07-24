@@ -53,59 +53,95 @@ describe('My FeathersJS Wrapper', () => {
 
 Follow these steps to create a fully-tested Wings adapter:
 
-#### Step 1: Implement the Wings Interface
+#### Step 1: Extend AdapterBase
 
-Create your adapter by extending `AdapterBase` and implementing the Wings interface:
+Create your adapter by extending `AdapterBase` from `@wingshq/adapter-commons`:
 
 ```typescript
-import { AdapterBase, AdapterInterface } from '@wingshq/adapter-commons'
+import { AdapterBase, Primitive, Paginated, AdapterParams } from '@wingshq/adapter-commons'
 
 export class MyWingsAdapter<T extends Record<string, any>> 
-  extends AdapterBase<T> 
-  implements AdapterInterface<T> {
+  extends AdapterBase<T> {
   
   constructor(options: MyAdapterOptions) {
     super(options)
+    // Your initialization code
   }
 
+  async find(params?: AdapterParams & { paginate?: false }): Promise<T[]>
+  async find(params: AdapterParams & { paginate: true }): Promise<Paginated<T>>
   async find(params?: AdapterParams): Promise<T[] | Paginated<T>> {
-    // Return T[] by default, Paginated<T> when params.paginate = true
+    const { filters, query } = this.filterQuery(params)
+    
+    // Your find implementation
+    const data = await this.queryDatabase(query, filters)
+    
+    if (params?.paginate) {
+      const total = await this.countRecords(query)
+      return this.buildPaginatedResult(data, total, filters)
+    }
+    
+    return data
   }
 
   async get(id: Primitive, params?: AdapterParams): Promise<T | null> {
-    // Return null instead of throwing when not found
+    // Your get implementation
+    const result = await this.findById(id)
+    return result || null
   }
 
+  async create(data: Partial<T>[], params?: AdapterParams): Promise<T[]>
+  async create(data: Partial<T>, params?: AdapterParams): Promise<T>
   async create(data: Partial<T> | Partial<T>[], params?: AdapterParams): Promise<T | T[]> {
-    // Create one or more records
+    // Your create implementation
+    if (Array.isArray(data)) {
+      return this.createMultiple(data)
+    }
+    return this.createSingle(data)
   }
 
   async patch(id: Primitive, data: Partial<T>, params?: AdapterParams): Promise<T | null> {
-    // Patch single record, return null if not found
+    this.validateNonNullId(id, 'patch')
+    // Your patch implementation
+    const result = await this.updateById(id, data)
+    return result || null
   }
 
   async patchMany(data: Partial<T>, params: AdapterParams & { allowAll?: boolean }): Promise<T[]> {
-    // Bulk patch with safety controls
-    if (!params.query && !params.allowAll) {
-      throw new BadRequest('No query provided. Use allowAll: true to update all records')
-    }
+    this.validateBulkParams(params.query, params.allowAll, 'patch')
+    // Your bulk patch implementation
+    return this.updateMultiple(params.query, data)
   }
 
   async remove(id: Primitive, params?: AdapterParams): Promise<T | null> {
-    // Remove single record, return null if not found
+    this.validateNonNullId(id, 'remove')
+    // Your remove implementation
+    const result = await this.deleteById(id)
+    return result || null
   }
 
   async removeMany(params: AdapterParams & { allowAll?: boolean }): Promise<T[]> {
-    // Bulk remove with safety controls
-    if (!params.query && !params.allowAll) {
-      throw new BadRequest('No query provided. Use allowAll: true to remove all records')
-    }
+    this.validateBulkParams(params.query, params.allowAll, 'remove')
+    // Your bulk remove implementation
+    return this.deleteMultiple(params.query)
   }
 
   async removeAll(params?: AdapterParams): Promise<T[]> {
-    // Clear entire table
+    // Your removeAll implementation
+    return this.clearTable()
   }
 }
+```
+
+#### Benefits of Extending AdapterBase
+
+By extending `AdapterBase`, your adapter automatically inherits:
+
+- **Query Filtering**: `filterQuery()` separates `$limit`, `$skip`, `$sort`, `$select` from the query
+- **Validation**: `validateNonNullId()` and `validateBulkParams()` provide consistent error messages
+- **Pagination**: `buildPaginatedResult()` creates properly formatted paginated responses
+- **SQL-like Operators**: `convertSqlLikeOperators()` converts `$like`, `$ilike`, `$isNull` for non-SQL databases
+- **Common Properties**: `id` getter and `options` management
 ```
 
 #### Step 2: Create Test File

@@ -341,9 +341,17 @@ This will scaffold a new adapter package with:
 
 - TypeScript configuration
 - Test setup with the shared test suite
-- Basic adapter implementation
+- Basic adapter implementation extending AdapterBase
 - Package.json with standard scripts
 - README template
+
+All Wings adapters extend the `AdapterBase` class from `@wingshq/adapter-commons`, which provides:
+
+- Common validation methods (`validateNonNullId`, `validateBulkParams`)
+- Standard query filtering and separation logic
+- Paginated result building
+- SQL-like operator conversion for non-SQL databases
+- Consistent error handling patterns
 
 ### Development Workflow
 
