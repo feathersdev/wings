@@ -59,19 +59,19 @@ export type SqlDialect = 'sqlite' | 'mysql' | 'postgres'
  * @property idField - The primary key field name (default: 'id').
  * @property dialect - SQL dialect: 'sqlite', 'mysql', or 'postgres'. Determines identifier quoting and parameter style.
  */
-export interface SqlServiceOptions {
+export interface Db0AdapterOptions {
   db: Database
   table: string
   idField?: string
   dialect?: SqlDialect
 }
 
-export class Db0Service<RT extends DbRecord> {
+export class Db0Adapter<RT extends DbRecord> {
   db: Database
   table: string
   idField: string
   dialect: SqlDialect
-  options: SqlServiceOptions
+  options: Db0AdapterOptions
 
   // Dialect-specific utilities
   private static dialectUtils = {
@@ -99,9 +99,9 @@ export class Db0Service<RT extends DbRecord> {
   }
 
   // Reference to the appropriate utilities for this instance
-  private utils: typeof Db0Service.dialectUtils.mysql
+  private utils: typeof Db0Adapter.dialectUtils.mysql
 
-  constructor(options: SqlServiceOptions) {
+  constructor(options: Db0AdapterOptions) {
     this.db = options.db
     this.table = options.table
     this.idField = options.idField || 'id'
@@ -109,7 +109,7 @@ export class Db0Service<RT extends DbRecord> {
     this.options = options
 
     // Select the appropriate utilities based on dialect
-    this.utils = Db0Service.dialectUtils[this.dialect]
+    this.utils = Db0Adapter.dialectUtils[this.dialect]
   }
 
   // FeathersJS compatibility: provide id property
@@ -124,11 +124,11 @@ export class Db0Service<RT extends DbRecord> {
    * @returns The quoted identifier string.
    */
   static quoteId(id: string, dialect: SqlDialect): string {
-    return Db0Service.dialectUtils[dialect].quoteIdentifier(id)
+    return Db0Adapter.dialectUtils[dialect].quoteIdentifier(id)
   }
 
   // Convert ? placeholders to $n for Postgres
-  private toPostgresPlaceholders(this: Db0Service<RT>, sql: string): string {
+  private toPostgresPlaceholders(this: Db0Adapter<RT>, sql: string): string {
     let i = 0
     return sql.replace(/\?/g, () => `$${++i}`)
   }
@@ -143,7 +143,7 @@ export class Db0Service<RT extends DbRecord> {
   }
 
   // Rewrite placeholders for Postgres
-  private async runSqlAll(this: Db0Service<RT>, sql: string, values: Primitive[]): Promise<any[]> {
+  private async runSqlAll(this: Db0Adapter<RT>, sql: string, values: Primitive[]): Promise<any[]> {
     try {
       if (this.dialect === 'postgres') {
         sql = this.toPostgresPlaceholders(sql)
@@ -155,7 +155,7 @@ export class Db0Service<RT extends DbRecord> {
     }
   }
 
-  private async runSqlRun(this: Db0Service<RT>, sql: string, values: Primitive[]): Promise<any> {
+  private async runSqlRun(this: Db0Adapter<RT>, sql: string, values: Primitive[]): Promise<any> {
     try {
       if (this.dialect === 'postgres') {
         sql = this.toPostgresPlaceholders(sql)
@@ -187,7 +187,7 @@ export class Db0Service<RT extends DbRecord> {
 
       const { sql: countWhereSql, vals: countWhereVals } = this.buildWhere(countQuery)
       const countWhereClause = countWhereSql ? `WHERE ${countWhereSql}` : ''
-      const countSql = `SELECT COUNT(*) as total FROM ${Db0Service.quoteId(
+      const countSql = `SELECT COUNT(*) as total FROM ${Db0Adapter.quoteId(
         this.table,
         this.dialect
       )} ${countWhereClause}`.trim()
@@ -236,7 +236,7 @@ export class Db0Service<RT extends DbRecord> {
       const sortFields = Object.keys(sort)
       if (sortFields.length) {
         orderBy = `ORDER BY ${sortFields
-          .map((f) => `${Db0Service.quoteId(f, this.dialect)} ${sort[f] === 1 ? 'ASC' : 'DESC'}`)
+          .map((f) => `${Db0Adapter.quoteId(f, this.dialect)} ${sort[f] === 1 ? 'ASC' : 'DESC'}`)
           .join(', ')}`
       }
       delete query.$sort
@@ -245,7 +245,7 @@ export class Db0Service<RT extends DbRecord> {
     // Build WHERE clause recursively
     const { sql: whereSql, vals: whereVals } = this.buildWhere(query)
     const whereClause = whereSql ? `WHERE ${whereSql}` : ''
-    const sql = `SELECT ${columns} FROM ${Db0Service.quoteId(
+    const sql = `SELECT ${columns} FROM ${Db0Adapter.quoteId(
       this.table,
       this.dialect
     )} ${whereClause} ${orderBy} ${limit} ${offset}`.trim()
@@ -278,7 +278,7 @@ export class Db0Service<RT extends DbRecord> {
           switch (op) {
             case '$in':
               if (Array.isArray(v) && v.length > 0) {
-                clauses.push(`${Db0Service.quoteId(field, this.dialect)} IN (${v.map(() => '?').join(', ')})`)
+                clauses.push(`${Db0Adapter.quoteId(field, this.dialect)} IN (${v.map(() => '?').join(', ')})`)
                 vals.push(...v.map((item) => this.convertValue(item)))
               } else {
                 clauses.push('0')
@@ -287,56 +287,56 @@ export class Db0Service<RT extends DbRecord> {
             case '$nin':
               if (Array.isArray(v) && v.length > 0) {
                 clauses.push(
-                  `${Db0Service.quoteId(field, this.dialect)} NOT IN (${v.map(() => '?').join(', ')})`
+                  `${Db0Adapter.quoteId(field, this.dialect)} NOT IN (${v.map(() => '?').join(', ')})`
                 )
                 vals.push(...v.map((item) => this.convertValue(item)))
               }
               break
             case '$ne':
               if (v === null) {
-                clauses.push(`${Db0Service.quoteId(field, this.dialect)} IS NOT NULL`)
+                clauses.push(`${Db0Adapter.quoteId(field, this.dialect)} IS NOT NULL`)
               } else {
-                clauses.push(`${Db0Service.quoteId(field, this.dialect)} != ?`)
+                clauses.push(`${Db0Adapter.quoteId(field, this.dialect)} != ?`)
                 vals.push(this.convertValue(v as Primitive))
               }
               break
             case '$gt':
-              clauses.push(`${Db0Service.quoteId(field, this.dialect)} > ?`)
+              clauses.push(`${Db0Adapter.quoteId(field, this.dialect)} > ?`)
               vals.push(this.convertValue(v as Primitive))
               break
             case '$gte':
-              clauses.push(`${Db0Service.quoteId(field, this.dialect)} >= ?`)
+              clauses.push(`${Db0Adapter.quoteId(field, this.dialect)} >= ?`)
               vals.push(this.convertValue(v as Primitive))
               break
             case '$lt':
-              clauses.push(`${Db0Service.quoteId(field, this.dialect)} < ?`)
+              clauses.push(`${Db0Adapter.quoteId(field, this.dialect)} < ?`)
               vals.push(this.convertValue(v as Primitive))
               break
             case '$lte':
-              clauses.push(`${Db0Service.quoteId(field, this.dialect)} <= ?`)
+              clauses.push(`${Db0Adapter.quoteId(field, this.dialect)} <= ?`)
               vals.push(this.convertValue(v as Primitive))
               break
             case '$like':
-              clauses.push(`${Db0Service.quoteId(field, this.dialect)} LIKE ?`)
+              clauses.push(`${Db0Adapter.quoteId(field, this.dialect)} LIKE ?`)
               vals.push(v as string)
               break
             case '$notlike':
-              clauses.push(`${Db0Service.quoteId(field, this.dialect)} NOT LIKE ?`)
+              clauses.push(`${Db0Adapter.quoteId(field, this.dialect)} NOT LIKE ?`)
               vals.push(v as string)
               break
             case '$ilike':
               if (this.dialect === 'postgres') {
-                clauses.push(`${Db0Service.quoteId(field, this.dialect)} ILIKE ?`)
+                clauses.push(`${Db0Adapter.quoteId(field, this.dialect)} ILIKE ?`)
               } else {
-                clauses.push(`LOWER(${Db0Service.quoteId(field, this.dialect)}) LIKE LOWER(?)`)
+                clauses.push(`LOWER(${Db0Adapter.quoteId(field, this.dialect)}) LIKE LOWER(?)`)
               }
               vals.push(v as string)
               break
             case '$isNull':
               if (v === true) {
-                clauses.push(`${Db0Service.quoteId(field, this.dialect)} IS NULL`)
+                clauses.push(`${Db0Adapter.quoteId(field, this.dialect)} IS NULL`)
               } else if (v === false) {
-                clauses.push(`${Db0Service.quoteId(field, this.dialect)} IS NOT NULL`)
+                clauses.push(`${Db0Adapter.quoteId(field, this.dialect)} IS NOT NULL`)
               }
               break
             default:
@@ -346,9 +346,9 @@ export class Db0Service<RT extends DbRecord> {
         }
       } else {
         if (value === null) {
-          clauses.push(`${Db0Service.quoteId(field, this.dialect)} IS NULL`)
+          clauses.push(`${Db0Adapter.quoteId(field, this.dialect)} IS NULL`)
         } else {
-          clauses.push(`${Db0Service.quoteId(field, this.dialect)} = ?`)
+          clauses.push(`${Db0Adapter.quoteId(field, this.dialect)} = ?`)
           vals.push(this.convertValue(value as Primitive))
         }
       }
@@ -369,7 +369,7 @@ export class Db0Service<RT extends DbRecord> {
     columns = this._getSelectColumns(query)
 
     const { sql: whereClause, values } = this.buildWhereClause(query, id)
-    const sql = `SELECT ${columns} FROM ${Db0Service.quoteId(this.table, this.dialect)} ${whereClause}`
+    const sql = `SELECT ${columns} FROM ${Db0Adapter.quoteId(this.table, this.dialect)} ${whereClause}`
     const rows = await this.runSqlAll(sql, values)
     return (rows[0] ?? null) as RT | null
   }
@@ -377,10 +377,10 @@ export class Db0Service<RT extends DbRecord> {
   private async createOne(data: Record<string, Primitive>): Promise<RT> {
     const fields = Object.keys(data)
     const values = fields.map((f) => this.convertValue(data[f]))
-    const columns = fields.map((f) => Db0Service.quoteId(f, this.dialect)).join(', ')
+    const columns = fields.map((f) => Db0Adapter.quoteId(f, this.dialect)).join(', ')
     const placeholders = fields.map(() => '?').join(', ')
 
-    const sql = `INSERT INTO ${Db0Service.quoteId(
+    const sql = `INSERT INTO ${Db0Adapter.quoteId(
       this.table,
       this.dialect
     )} (${columns}) VALUES (${placeholders})`
@@ -401,7 +401,7 @@ export class Db0Service<RT extends DbRecord> {
       }
 
       // Fetch the created record
-      const selectSql = `SELECT * FROM ${Db0Service.quoteId(this.table, this.dialect)} WHERE ${Db0Service.quoteId(
+      const selectSql = `SELECT * FROM ${Db0Adapter.quoteId(this.table, this.dialect)} WHERE ${Db0Adapter.quoteId(
         this.idField,
         this.dialect
       )} = ?`
@@ -417,7 +417,7 @@ export class Db0Service<RT extends DbRecord> {
   private async createMany(data: Array<Record<string, Primitive>>): Promise<RT[]> {
     if (!data.length) return []
     const fields = Array.from(new Set(data.flatMap(Object.keys)))
-    const columns = fields.map((f: string) => Db0Service.quoteId(f, this.dialect)).join(', ')
+    const columns = fields.map((f: string) => Db0Adapter.quoteId(f, this.dialect)).join(', ')
 
     // For each row, ensure every field is present, fill missing with null
     const rowPlaceholders = data.map(() => `(${fields.map(() => '?').join(', ')})`).join(', ')
@@ -425,7 +425,7 @@ export class Db0Service<RT extends DbRecord> {
       fields.map((f: string) => this.convertValue(row[f] ?? null))
     )
 
-    const sql = `INSERT INTO ${Db0Service.quoteId(
+    const sql = `INSERT INTO ${Db0Adapter.quoteId(
       this.table,
       this.dialect
     )} (${columns}) VALUES ${rowPlaceholders}`
@@ -446,7 +446,7 @@ export class Db0Service<RT extends DbRecord> {
       // Fetch the created records - MySQL auto_increment IDs are sequential
       const ids = Array.from({ length: affectedRows }, (_, i) => firstInsertId + i)
       const placeholders = ids.map(() => '?').join(', ')
-      const selectSql = `SELECT * FROM ${Db0Service.quoteId(this.table, this.dialect)} WHERE ${Db0Service.quoteId(
+      const selectSql = `SELECT * FROM ${Db0Adapter.quoteId(this.table, this.dialect)} WHERE ${Db0Adapter.quoteId(
         this.idField,
         this.dialect
       )} IN (${placeholders})`
@@ -486,13 +486,13 @@ export class Db0Service<RT extends DbRecord> {
     const fields = Object.keys(data)
     if (!fields.length) return this.get(id, params)
 
-    const assignments = fields.map((f) => `${Db0Service.quoteId(f, this.dialect)} = ?`).join(', ')
+    const assignments = fields.map((f) => `${Db0Adapter.quoteId(f, this.dialect)} = ?`).join(', ')
     const values = fields.map((f) => this.convertValue(data[f]))
 
     // Use buildWhereClause to handle both id and additional query conditions
     const { sql: whereClause, values: whereValues } = this.buildWhereClause(params?.query || {}, id)
 
-    const sql = `UPDATE ${Db0Service.quoteId(this.table, this.dialect)} SET ${assignments} ${whereClause}`
+    const sql = `UPDATE ${Db0Adapter.quoteId(this.table, this.dialect)} SET ${assignments} ${whereClause}`
 
     if (this.utils.supportsReturning) {
       const columns = this._getSelectColumns(params?.query || {})
@@ -519,11 +519,11 @@ export class Db0Service<RT extends DbRecord> {
     query: Record<string, Primitive>,
     id?: Primitive
   ): { sql: string; values: Primitive[] } {
-    const clauses: string[] = id ? [`${Db0Service.quoteId(this.idField, this.dialect)} = ?`] : []
+    const clauses: string[] = id ? [`${Db0Adapter.quoteId(this.idField, this.dialect)} = ?`] : []
     const values: Primitive[] = id ? [id] : []
     for (const [key, value] of Object.entries(query)) {
       if (!key.startsWith('$')) {
-        clauses.push(`${Db0Service.quoteId(key, this.dialect)} = ?`)
+        clauses.push(`${Db0Adapter.quoteId(key, this.dialect)} = ?`)
         values.push(this.convertValue(value))
       }
     }
@@ -540,7 +540,7 @@ export class Db0Service<RT extends DbRecord> {
     if (query && query.$select && Array.isArray(query.$select)) {
       const selectFields = new Set([this.idField, ...query.$select])
       const columns = Array.from(selectFields)
-        .map((f) => Db0Service.quoteId(f, this.dialect))
+        .map((f) => Db0Adapter.quoteId(f, this.dialect))
         .join(', ')
       delete query.$select
       return columns
@@ -564,10 +564,10 @@ export class Db0Service<RT extends DbRecord> {
     const { sql: whereSql, vals: whereVals } = this.buildWhere(query)
     const fields = Object.keys(data)
     if (!fields.length) return []
-    const assignments = fields.map((f) => `${Db0Service.quoteId(f, this.dialect)} = ?`).join(', ')
+    const assignments = fields.map((f) => `${Db0Adapter.quoteId(f, this.dialect)} = ?`).join(', ')
     const setValues = fields.map((f) => this.convertValue(data[f]))
 
-    const sql = `UPDATE ${Db0Service.quoteId(this.table, this.dialect)} SET ${assignments} ${
+    const sql = `UPDATE ${Db0Adapter.quoteId(this.table, this.dialect)} SET ${assignments} ${
       whereSql ? 'WHERE ' + whereSql : ''
     }`
 
@@ -579,7 +579,7 @@ export class Db0Service<RT extends DbRecord> {
       await this.db.prepare(sql).run(...[...setValues, ...whereVals])
 
       // Fetch the updated records
-      const selectSql = `SELECT ${columns} FROM ${Db0Service.quoteId(this.table, this.dialect)} ${
+      const selectSql = `SELECT ${columns} FROM ${Db0Adapter.quoteId(this.table, this.dialect)} ${
         whereSql ? 'WHERE ' + whereSql : ''
       }`
       const rows = await this.runSqlAll(selectSql, whereVals)
@@ -607,7 +607,7 @@ export class Db0Service<RT extends DbRecord> {
     const { sql: whereSql, values: whereValues } = this.buildWhereClause(query, id)
 
     if (this.utils.supportsReturning) {
-      const sql = `DELETE FROM ${Db0Service.quoteId(this.table, this.dialect)} ${whereSql} RETURNING ${columns}`
+      const sql = `DELETE FROM ${Db0Adapter.quoteId(this.table, this.dialect)} ${whereSql} RETURNING ${columns}`
       const rows = await this.runSqlAll(sql, whereValues)
       return (rows[0] ?? null) as RT | null
     } else {
@@ -615,7 +615,7 @@ export class Db0Service<RT extends DbRecord> {
       const record = await this.get(id, params)
       if (!record) return null
 
-      const deleteSql = `DELETE FROM ${Db0Service.quoteId(this.table, this.dialect)} ${whereSql}`
+      const deleteSql = `DELETE FROM ${Db0Adapter.quoteId(this.table, this.dialect)} ${whereSql}`
       await this.db.prepare(deleteSql).run(...whereValues)
       return record
     }
@@ -638,7 +638,7 @@ export class Db0Service<RT extends DbRecord> {
     const ids = items.map((item) => (item as any)[this.idField])
     if (!ids.length) return items
     const placeholders = ids.map(() => '?').join(', ')
-    const sql = `DELETE FROM ${Db0Service.quoteId(this.table, this.dialect)} WHERE ${Db0Service.quoteId(
+    const sql = `DELETE FROM ${Db0Adapter.quoteId(this.table, this.dialect)} WHERE ${Db0Adapter.quoteId(
       this.idField,
       this.dialect
     )} IN (${placeholders})`
@@ -651,12 +651,15 @@ export class Db0Service<RT extends DbRecord> {
    * @returns An empty array.
    */
   async removeAll(): Promise<RT[]> {
-    const sql = `DELETE FROM ${Db0Service.quoteId(this.table, this.dialect)}`
+    const sql = `DELETE FROM ${Db0Adapter.quoteId(this.table, this.dialect)}`
     await this.runSqlRun(sql, [])
     return []
   }
 }
 
-export function service<T extends Record<string, any>>(options: SqlServiceOptions): Db0Service<T> {
-  return new Db0Service<T>(options)
+export function adapter<T extends Record<string, any>>(options: Db0AdapterOptions): Db0Adapter<T> {
+  return new Db0Adapter<T>(options)
 }
+
+// Backwards compatibility
+export const service = adapter

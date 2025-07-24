@@ -5,8 +5,11 @@ export type Person = {
   created?: boolean
 }
 
-// Factory function type for creating service instances
-export type ServiceFactory<T> = () => T
+// Factory function type for creating adapter instances
+export type AdapterFactory<T> = () => T
+
+// Backwards compatibility alias
+export type ServiceFactory<T> = AdapterFactory<T>
 
 // Base interface that both Wings and FeathersJS adapters should support
 export interface BaseAdapter<T = any> {

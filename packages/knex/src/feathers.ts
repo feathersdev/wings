@@ -110,6 +110,3 @@ export class FeathersKnexAdapter<T extends Record<string, any> = any> implements
     }
   }
 }
-
-// Export the FeathersJS adapter as the default for backwards compatibility
-export { FeathersKnexAdapter as KnexService }

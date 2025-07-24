@@ -56,21 +56,21 @@ Wings represents the next evolution of database adapters, building on lessons le
 
 ```typescript
 // Wings Adapter - Modern, intuitive patterns
-const users = await service.find({ query: { active: true } }) // Returns User[]
-const paginated = await service.find({ query: { active: true }, paginate: true }) // Returns Paginated<User>
-const user = await service.get(123) // Returns User | null
+const users = await adapter.find({ query: { active: true } }) // Returns User[]
+const paginated = await adapter.find({ query: { active: true }, paginate: true }) // Returns Paginated<User>
+const user = await adapter.get(123) // Returns User | null
 
 // Bulk operations with safety
-await service.patchMany({ active: false }, { query: { role: 'admin' } }) // Fails - needs allowAll
-await service.patchMany({ active: false }, { query: { role: 'admin' }, allowAll: true }) // Success
+await adapter.patchMany({ active: false }, { query: { role: 'admin' } }) // Fails - needs allowAll
+await adapter.patchMany({ active: false }, { query: { role: 'admin' }, allowAll: true }) // Success
 
 // FeathersJS Adapter - Legacy patterns
-const result = await service.find({ query: { active: true } }) // Always Paginated<User>
+const result = await adapter.find({ query: { active: true } }) // Always Paginated<User>
 const users = result.data // Extra step to get array
-const user = await service.get(123) // Throws NotFound if missing
+const user = await adapter.get(123) // Throws NotFound if missing
 
 // Bulk operations without safety
-await service.patch(null, { active: false }, { query: { role: 'admin' } }) // No safety check
+await adapter.patch(null, { active: false }, { query: { role: 'admin' } }) // No safety check
 ```
 
 ## Key Features
@@ -190,29 +190,31 @@ await users.patchMany(
 
 Wings provides full backwards compatibility with FeathersJS through optional wrapper packages. This allows gradual migration and continued use of existing FeathersJS tooling.
 
+> **Note**: In Feathers v6, services and adapters are decoupled. Services handle API endpoints while adapters handle database operations. Wings adapters can be used directly or through FeathersJS compatibility wrappers.
+
 ### Using FeathersJS Wrappers
 
 ```typescript
 // Import the FeathersJS wrapper
-import { FeathersKnexService } from '@wingshq/knex/feathers'
+import { FeathersKnexAdapter } from '@wingshq/knex/feathers'
 
-// Use exactly like traditional FeathersJS adapters
-const service = new FeathersKnexService({
+// Create adapter instance
+const adapter = new FeathersKnexAdapter({
   name: 'users',
   Model: db
 })
 
-// All FeathersJS patterns work unchanged
-const paginated = await service.find({ query: { active: true } }) // Always returns Paginated<T>
-const user = await service.get(123) // Throws NotFound if missing
-await service.update(123, fullUserData) // Full update method available
+// All FeathersJS adapter patterns work unchanged
+const paginated = await adapter.find({ query: { active: true } }) // Always returns Paginated<T>
+const user = await adapter.get(123) // Throws NotFound if missing
+await adapter.update(123, fullUserData) // Full update method available
 ```
 
 ### Migration Path
 
 1. **Drop-in Replacement**: Start by replacing FeathersJS adapters with Wings compatibility wrappers
-2. **Gradual Adoption**: Migrate services to native Wings interface as needed
-3. **Full Migration**: Eventually move all services to Wings for best performance and developer experience
+2. **Gradual Adoption**: Migrate adapters to native Wings interface as needed
+3. **Full Migration**: Eventually move all adapters to Wings for best performance and developer experience
 
 ## Development
 

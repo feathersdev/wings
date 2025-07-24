@@ -690,15 +690,16 @@ export class KyselyAdapter<
     } else {
       // MySQL doesn't support RETURNING, so update then fetch
       const updateResult = await qb.execute()
-      
+
       // Check if any rows were affected
       // Kysely returns UpdateResult with numUpdatedRows for MySQL
-      const affectedRows = (updateResult as any)[0]?.numUpdatedRows || (updateResult as any).numAffectedRows || 0
+      const affectedRows =
+        (updateResult as any)[0]?.numUpdatedRows || (updateResult as any).numAffectedRows || 0
       // Handle both number and BigInt types
       if (affectedRows === 0 || affectedRows.toString() === '0') {
         return null
       }
-      
+
       // Fetch the updated record - remove query constraints that were used for WHERE clause
       const getParams = { ...params }
       if (query.$select) {
@@ -749,7 +750,7 @@ export class KyselyAdapter<
     } else {
       // MySQL doesn't support RETURNING, so update then fetch
       await qb.execute()
-      
+
       // Fetch the updated records
       const findParams = { ...params, query: { ...filters, $select: query.$select } }
       return this.find(findParams) as Promise<Result[]>
@@ -791,7 +792,7 @@ export class KyselyAdapter<
       // MySQL doesn't support RETURNING, so fetch then delete
       const record = await this.get(id, params)
       if (!record) return null
-      
+
       await qb.execute()
       return record
     }
@@ -835,7 +836,7 @@ export class KyselyAdapter<
       // MySQL doesn't support RETURNING, so fetch then delete
       const findParams = { ...params, query: { ...filters, $select: query.$select } }
       const records = await this.find(findParams)
-      
+
       await qb.execute()
       return records as unknown as Result[]
     }

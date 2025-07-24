@@ -1,5 +1,5 @@
 import { describe, beforeAll, afterAll } from 'vitest'
-import { Db0Service } from '../src/service.js'
+import { Db0Adapter } from '../src/service.js'
 import { errorHandler } from '../src/error-handler.js'
 import { fullWingsTests, WINGS_CONFIG, TestConfig } from '@wingshq/adapter-tests'
 import type { DbRecord } from '../src/service.js'
@@ -14,13 +14,13 @@ interface User extends DbRecord, Person {
 }
 
 let dbSetup: TestDatabaseSetup
-let service: Db0Service<User>
+let adapter: Db0Adapter<User>
 
 describe('Db0 Adapter - Comprehensive Test Suite', () => {
   beforeAll(async () => {
     dbSetup = await setupCleanDatabase('wings', 'users')
     const TYPE = process.env.TEST_DB || 'sqlite'
-    service = new Db0Service<User>({
+    adapter = new Db0Adapter<User>({
       db: dbSetup.db,
       table: 'users',
       idField: 'id',
@@ -32,8 +32,8 @@ describe('Db0 Adapter - Comprehensive Test Suite', () => {
     await dbSetup.cleanup()
   })
 
-  // Create service factory function
-  const createService = () => service
+  // Create adapter factory function
+  const createAdapter = () => adapter
 
   // Custom config for PostgreSQL integer IDs
   const customConfig: TestConfig = {
@@ -45,5 +45,5 @@ describe('Db0 Adapter - Comprehensive Test Suite', () => {
   }
 
   // Run the full Wings test suite (common + Wings-specific tests) with error handler
-  fullWingsTests(createService, 'id', customConfig, errorHandler)
+  fullWingsTests(createAdapter, 'id', customConfig, errorHandler)
 })

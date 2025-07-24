@@ -84,7 +84,7 @@ This ensures:
 
 ## Architecture Overview
 
-Wings is a TypeScript monorepo that provides universal database adapters following the FeathersJS service pattern. The core architectural principle is to provide a unified interface (`AdapterInterface`) that works across different databases.
+Wings is a TypeScript monorepo that provides universal database adapters. The core architectural principle is to provide a unified interface (`AdapterInterface`) that works across different databases.
 
 ### Key Interfaces (FeathersJS)
 
@@ -118,10 +118,10 @@ The new Wings adapter interface builds on FeathersJS patterns but introduces sev
 
    ```typescript
    // Returns User[] directly
-   const users = await service.find({ query: { name: 'Alice' } })
+   const users = await adapter.find({ query: { name: 'Alice' } })
 
    // Returns Paginated<User> with total count
-   const result = await service.find({ query: { name: 'Alice' }, paginate: true })
+   const result = await adapter.find({ query: { name: 'Alice' }, paginate: true })
    ```
 
 2. **Explicit Bulk Operations**: Uses dedicated `patchMany()` and `removeMany()` methods instead of `patch(id: null)` and `remove(id: null)`
@@ -165,7 +165,7 @@ Wings uses "OmniQuery Syntax" - a standardized query format across all adapters:
 - Each adapter has its own test file that imports the shared test suite
 - Tests ensure consistent behavior across all adapters
 - Use vitest for modern testing with better performance and developer experience
-- Service factory pattern ensures proper test isolation
+- Adapter factory pattern ensures proper test isolation
 - Run coverage reports to ensure comprehensive testing
 
 ### Module Format
@@ -198,7 +198,7 @@ The following tasks need to be completed to fully migrate the repository to the 
 
 #### Test Suite Migration (adapter-tests)
 - **Complete vitest migration**: Successfully migrated from Node.js test runner to vitest for better performance
-- **Service factory pattern**: Implemented proper test isolation across all test suites
+- **Adapter factory pattern**: Implemented proper test isolation across all test suites
 - **Three-tier test organization**: Created common/, wings/, and feathersjs/ test directories
 - **Configuration-driven testing**: Test behavior adapts based on TestConfig (WINGS_CONFIG vs FEATHERS_CONFIG)
 - **Comprehensive coverage**: 133+ tests covering all adapter patterns and edge cases
@@ -352,16 +352,16 @@ After all adapters are fully migrated to the Wings interface and passing tests, 
 
 ```typescript
 // Example wrapper pattern
-export class FeathersKnexService<T> implements FeathersAdapterInterface<T> {
-  constructor(private wingsService: WingsKnexService<T>) {}
+export class FeathersKnexAdapter<T> implements FeathersAdapterInterface<T> {
+  constructor(private wingsAdapter: WingsKnexAdapter<T>) {}
 
   async find(params?: Params): Promise<Paginated<T>> {
     // Always paginate for FeathersJS compatibility
-    return this.wingsService.find({ ...params, paginate: true })
+    return this.wingsAdapter.find({ ...params, paginate: true })
   }
 
   async get(id: Id, params?: Params): Promise<T> {
-    const result = await this.wingsService.get(id, params)
+    const result = await this.wingsAdapter.get(id, params)
     if (result === null) {
       throw new NotFound(`No record found for id '${id}'`)
     }
@@ -371,10 +371,10 @@ export class FeathersKnexService<T> implements FeathersAdapterInterface<T> {
   async patch(id: Id | null, data: Partial<T>, params?: Params): Promise<T | T[]> {
     if (id === null) {
       // Bulk operation - delegate to patchMany
-      return this.wingsService.patchMany(data, params)
+      return this.wingsAdapter.patchMany(data, params)
     } else {
       // Single operation
-      const result = await this.wingsService.patch(id, data, params)
+      const result = await this.wingsAdapter.patch(id, data, params)
       if (result === null) {
         throw new NotFound(`No record found for id '${id}'`)
       }

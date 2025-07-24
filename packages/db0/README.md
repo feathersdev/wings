@@ -79,7 +79,7 @@ npm install @planetscale/database
 ### Wings Interface
 
 ```typescript
-import { Db0Service } from '@wingshq/db0'
+import { Db0Adapter } from '@wingshq/db0'
 import { createDatabase } from 'db0'
 import sqlite from 'db0/connectors/better-sqlite3'
 
@@ -111,8 +111,8 @@ const db = createDatabase(
 //   })
 // )
 
-// Create service instance
-const users = new Db0Service<User>({
+// Create adapter instance
+const users = new Db0Adapter<User>({
   db,
   table: 'users',
   idField: 'id',
@@ -143,7 +143,7 @@ console.log(result.total) // Total count
 ### FeathersJS Interface
 
 ```typescript
-import { FeathersDb0Service } from '@wingshq/db0/feathers'
+import { FeathersDb0Adapter } from '@wingshq/db0/feathers'
 import { createDatabase } from 'db0'
 import sqlite from 'db0/connectors/better-sqlite3'
 
@@ -154,7 +154,7 @@ const db = createDatabase(
   })
 )
 
-const users = new FeathersDb0Service({
+const users = new FeathersDb0Adapter({
   db,
   table: 'users',
   paginate: {
@@ -175,19 +175,19 @@ const result = await users.find({
 ### Cloudflare Workers & Durable Objects
 
 ```typescript
-import { Db0Service } from '@wingshq/db0'
+import { Db0Adapter } from '@wingshq/db0'
 import { createDatabase } from 'db0'
 import durableObjectSql from '@wingshq/db0/cloudflare'
 
 export class UserDurableObject implements DurableObject {
-  private service: Db0Service<User>
+  private adapter: Db0Adapter<User>
 
   constructor(state: DurableObjectState) {
     const db = createDatabase(
       durableObjectSql({ sql: state.storage.sql })
     )
     
-    this.service = new Db0Service<User>({
+    this.adapter = new Db0Adapter<User>({
       db,
       table: 'users',
       dialect: 'sqlite'
@@ -198,13 +198,13 @@ export class UserDurableObject implements DurableObject {
     const url = new URL(request.url)
     
     if (url.pathname === '/users' && request.method === 'GET') {
-      const users = await this.service.find()
+      const users = await this.adapter.find()
       return Response.json(users)
     }
     
     if (url.pathname === '/users' && request.method === 'POST') {
       const data = await request.json()
-      const user = await this.service.create(data)
+      const user = await this.adapter.create(data)
       return Response.json(user)
     }
     
@@ -222,7 +222,7 @@ The Wings interface provides a modern, type-safe API with explicit operations:
 #### Constructor Options
 
 ```typescript
-interface Db0ServiceOptions {
+interface Db0AdapterOptions {
   db: Database             // db0 database instance
   table: string           // Table name
   idField?: string        // Primary key field (default: 'id')
@@ -236,18 +236,18 @@ interface Db0ServiceOptions {
 
 ```typescript
 // Return array by default
-const users = await service.find({
+const users = await adapter.find({
   query: { active: true }
 }) // Returns: User[]
 
 // Return paginated results
-const result = await service.find({
+const result = await adapter.find({
   query: { active: true },
   paginate: true
 }) // Returns: { total: number, limit: number, skip: number, data: User[] }
 
 // With advanced queries
-const result = await service.find({
+const result = await adapter.find({
   query: {
     age: { $gte: 18 },
     email: { $like: '%@company.com' },
@@ -261,13 +261,13 @@ const result = await service.find({
 
 ```typescript
 // Returns null if not found (no error thrown)
-const user = await service.get(123)
+const user = await adapter.get(123)
 if (user === null) {
   console.log('User not found')
 }
 
 // With query parameters
-const user = await service.get(123, {
+const user = await adapter.get(123, {
   query: {
     $select: ['id', 'name', 'email']
   }
@@ -278,19 +278,19 @@ const user = await service.get(123, {
 
 ```typescript
 // Create single record
-const user = await service.create({
+const user = await adapter.create({
   name: 'Bob Smith',
   email: 'bob@example.com'
 })
 
 // Create multiple records
-const users = await service.create([
+const users = await adapter.create([
   { name: 'Alice', email: 'alice@example.com' },
   { name: 'Charlie', email: 'charlie@example.com' }
 ])
 
 // With RETURNING clause (gets created records)
-const user = await service.create({
+const user = await adapter.create({
   name: 'Dave',
   email: 'dave@example.com'
 })
@@ -301,13 +301,13 @@ console.log(user.id) // Auto-generated ID
 
 ```typescript
 // Patch single record (returns null if not found)
-const updated = await service.patch(123, {
+const updated = await adapter.patch(123, {
   status: 'active',
   lastLogin: new Date().toISOString()
 })
 
 // Bulk patch with patchMany
-const updated = await service.patchMany(
+const updated = await adapter.patchMany(
   { status: 'archived' },
   { 
     query: { 
@@ -322,10 +322,10 @@ const updated = await service.patchMany(
 
 ```typescript
 // Remove single record (returns null if not found)
-const removed = await service.remove(123)
+const removed = await adapter.remove(123)
 
 // Bulk remove with removeMany
-const removed = await service.removeMany({
+const removed = await adapter.removeMany({
   query: { 
     status: 'deleted',
     deletedAt: { $lt: sevenDaysAgo.toISOString() }
@@ -334,7 +334,7 @@ const removed = await service.removeMany({
 })
 
 // Remove all records (use with caution!)
-const all = await service.removeAll()
+const all = await adapter.removeAll()
 ```
 
 ### FeathersJS Interface
@@ -349,33 +349,33 @@ The FeathersJS wrapper maintains full backwards compatibility:
 - Bulk operations via `patch(null, data)` and `remove(null)`
 
 ```typescript
-import { FeathersDb0Service } from '@wingshq/db0/feathers'
+import { FeathersDb0Adapter } from '@wingshq/db0/feathers'
 
-const service = new FeathersDb0Service<User>({
+const adapter = new FeathersDb0Adapter<User>({
   db,
   table: 'users'
 })
 
 // Always paginated by default
-const result = await service.find({}) 
+const result = await adapter.find({}) 
 // Returns: { total, limit, skip, data }
 
 // Throws NotFound error
 try {
-  await service.get(999)
+  await adapter.get(999)
 } catch (error) {
   console.log(error.message) // "No record found for id '999'"
 }
 
 // Update (full replacement)
-const updated = await service.update(123, {
+const updated = await adapter.update(123, {
   name: 'New Name',
   email: 'new@example.com',
   role: 'user'
 })
 
 // Bulk operations (FeathersJS style)
-await service.patch(null, { archived: true }, {
+await adapter.patch(null, { archived: true }, {
   query: { status: 'inactive' }
 })
 ```
@@ -444,7 +444,7 @@ const db = createDatabase(
 #### Custom Configuration
 
 ```typescript
-const service = new Db0Service({
+const adapter = new Db0Adapter({
   db,
   table: 'users',
   idField: 'uuid',        // Custom primary key
@@ -458,10 +458,10 @@ const service = new Db0Service({
 
 ```typescript
 // Equality
-await service.find({ query: { status: 'active' } })
+await adapter.find({ query: { status: 'active' } })
 
 // Multiple conditions (AND)
-await service.find({ 
+await adapter.find({ 
   query: { 
     status: 'active',
     age: { $gte: 18 }
@@ -473,56 +473,56 @@ await service.find({
 
 ```typescript
 // Greater than / Greater than or equal
-await service.find({ query: { age: { $gt: 21 } } })
-await service.find({ query: { age: { $gte: 21 } } })
+await adapter.find({ query: { age: { $gt: 21 } } })
+await adapter.find({ query: { age: { $gte: 21 } } })
 
 // Less than / Less than or equal
-await service.find({ query: { price: { $lt: 100 } } })
-await service.find({ query: { price: { $lte: 100 } } })
+await adapter.find({ query: { price: { $lt: 100 } } })
+await adapter.find({ query: { price: { $lte: 100 } } })
 
 // Not equal
-await service.find({ query: { status: { $ne: 'deleted' } } })
+await adapter.find({ query: { status: { $ne: 'deleted' } } })
 
 // In / Not in
-await service.find({ query: { role: { $in: ['admin', 'moderator'] } } })
-await service.find({ query: { status: { $nin: ['deleted', 'banned'] } } })
+await adapter.find({ query: { role: { $in: ['admin', 'moderator'] } } })
+await adapter.find({ query: { status: { $nin: ['deleted', 'banned'] } } })
 ```
 
 ### Text Search Operators
 
 ```typescript
 // Case-sensitive pattern matching (SQL LIKE)
-await service.find({ query: { email: { $like: '%@gmail.com' } } })
-await service.find({ query: { name: { $like: 'John%' } } })
+await adapter.find({ query: { email: { $like: '%@gmail.com' } } })
+await adapter.find({ query: { name: { $like: 'John%' } } })
 
 // Case-insensitive pattern matching
 // PostgreSQL: Uses native ILIKE
 // MySQL/SQLite: Falls back to LOWER() comparison
-await service.find({ query: { name: { $ilike: '%smith%' } } })
+await adapter.find({ query: { name: { $ilike: '%smith%' } } })
 
 // Not like
-await service.find({ query: { email: { $notlike: '%@temp-mail.%' } } })
+await adapter.find({ query: { email: { $notlike: '%@temp-mail.%' } } })
 ```
 
 ### Null Handling
 
 ```typescript
 // Find records where field is null
-await service.find({ query: { deletedAt: { $isNull: true } } })
+await adapter.find({ query: { deletedAt: { $isNull: true } } })
 
 // Find records where field is not null
-await service.find({ query: { deletedAt: { $isNull: false } } })
+await adapter.find({ query: { deletedAt: { $isNull: false } } })
 
 // Direct null comparison
-await service.find({ query: { deletedAt: null } })  // IS NULL
-await service.find({ query: { deletedAt: { $ne: null } } })  // IS NOT NULL
+await adapter.find({ query: { deletedAt: null } })  // IS NULL
+await adapter.find({ query: { deletedAt: { $ne: null } } })  // IS NOT NULL
 ```
 
 ### Logical Operators
 
 ```typescript
 // OR conditions
-await service.find({
+await adapter.find({
   query: {
     $or: [
       { status: 'active' },
@@ -532,7 +532,7 @@ await service.find({
 })
 
 // AND conditions (explicit)
-await service.find({
+await adapter.find({
   query: {
     $and: [
       { age: { $gte: 18 } },
@@ -542,7 +542,7 @@ await service.find({
 })
 
 // Complex nested conditions
-await service.find({
+await adapter.find({
   query: {
     $or: [
       { 
@@ -561,7 +561,7 @@ await service.find({
 
 ```typescript
 // Sorting
-await service.find({
+await adapter.find({
   query: {
     $sort: { 
       createdAt: -1,  // Descending
@@ -571,7 +571,7 @@ await service.find({
 })
 
 // Pagination
-await service.find({
+await adapter.find({
   query: {
     $limit: 20,
     $skip: 40,  // Page 3 with 20 items per page
@@ -580,7 +580,7 @@ await service.find({
 })
 
 // Field selection
-await service.find({
+await adapter.find({
   query: {
     $select: ['id', 'name', 'email', 'createdAt']
   }
@@ -594,7 +594,7 @@ await service.find({
 The db0 adapter provides full MySQL support with automatic handling of MySQL limitations:
 
 ```typescript
-import { Db0Service } from '@wingshq/db0'
+import { Db0Adapter } from '@wingshq/db0'
 import { createDatabase } from 'db0'
 import mysql from 'db0/connectors/mysql2'
 
@@ -609,8 +609,8 @@ const db = createDatabase(
   })
 )
 
-// Create service with MySQL dialect
-const users = new Db0Service<User>({
+// Create adapter with MySQL dialect
+const users = new Db0Adapter<User>({
   db,
   table: 'users',
   dialect: 'mysql' // Important for MySQL-specific behavior
@@ -668,7 +668,7 @@ console.log(updated) // All updated records retrieved
 The db0 adapter provides full PostgreSQL support with automatic dialect detection:
 
 ```typescript
-import { Db0Service } from '@wingshq/db0'
+import { Db0Adapter } from '@wingshq/db0'
 import { createDatabase } from 'db0'
 import postgres from 'db0/connectors/postgresql'
 
@@ -683,8 +683,8 @@ const db = createDatabase(
   })
 )
 
-// Create service with PostgreSQL dialect
-const users = new Db0Service<User>({
+// Create adapter with PostgreSQL dialect
+const users = new Db0Adapter<User>({
   db,
   table: 'users',
   dialect: 'postgres' // Important for proper SQL generation
@@ -764,13 +764,13 @@ const results = await db.prepare(
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const db = createDatabase(d1(env.DB))
-    const service = new Db0Service({
+    const adapter = new Db0Adapter({
       db,
       table: 'users',
       dialect: 'sqlite'
     })
     
-    const users = await service.find()
+    const users = await adapter.find()
     return Response.json(users)
   }
 }
@@ -780,12 +780,12 @@ export const config = { runtime: 'edge' }
 
 export default async function handler(request: Request) {
   const db = createDatabase(/* your connector */)
-  const service = new Db0Service({
+  const adapter = new Db0Adapter({
     db,
     table: 'products'
   })
   
-  const products = await service.find()
+  const products = await adapter.find()
   return Response.json(products)
 }
 ```
@@ -795,10 +795,10 @@ export default async function handler(request: Request) {
 ```typescript
 import durableObjectSql from '@wingshq/db0/cloudflare'
 
-export class StatefulService implements DurableObject {
+export class StatefulAdapter implements DurableObject {
   private db: Database
-  private users: Db0Service<User>
-  private sessions: Db0Service<Session>
+  private users: Db0Adapter<User>
+  private sessions: Db0Adapter<Session>
 
   constructor(state: DurableObjectState) {
     // Single database for all tables
@@ -807,12 +807,12 @@ export class StatefulService implements DurableObject {
     )
     
     // Multiple services sharing the same database
-    this.users = new Db0Service({
+    this.users = new Db0Adapter({
       db: this.db,
       table: 'users'
     })
     
-    this.sessions = new Db0Service({
+    this.sessions = new Db0Adapter({
       db: this.db,
       table: 'sessions'
     })
@@ -856,11 +856,11 @@ const results = await db.prepare(
   'GROUP BY u.id'
 ).all(startDate)
 
-// Use with service for complex operations
-const service = new Db0Service({ db, table: 'users' })
+// Use with adapter for complex operations
+const adapter = new Db0Adapter({ db, table: 'users' })
 
-// Standard operations through service
-const activeUsers = await service.find({
+// Standard operations through adapter
+const activeUsers = await adapter.find({
   query: { status: 'active' }
 })
 
@@ -879,7 +879,7 @@ const analytics = await db.prepare(
 ```typescript
 // Safety controls prevent accidental mass updates
 try {
-  await service.patchMany(
+  await adapter.patchMany(
     { status: 'archived' },
     { query: {} }  // Empty query
   )
@@ -888,13 +888,13 @@ try {
 }
 
 // Explicitly allow operations on all records
-await service.patchMany(
+await adapter.patchMany(
   { status: 'archived' },
   { allowAll: true }
 )
 
 // Safe bulk operation with specific query
-await service.removeMany({
+await adapter.removeMany({
   query: { 
     status: 'pending',
     createdAt: { $lt: oneWeekAgo }
@@ -908,21 +908,21 @@ await service.removeMany({
 
 ```typescript
 // No errors thrown for not found
-const user = await service.get(999)
+const user = await adapter.get(999)
 if (user === null) {
   // Handle not found case
 }
 
 // Validation errors
 try {
-  await service.patch(null as any, { name: 'Test' })
+  await adapter.patch(null as any, { name: 'Test' })
 } catch (error) {
   // BadRequest: patch() requires a non-null id
 }
 
 // Database errors are wrapped
 try {
-  await service.create({ email: 'duplicate@example.com' })
+  await adapter.create({ email: 'duplicate@example.com' })
 } catch (error) {
   // GeneralError with database error details
   console.log(error.message)
@@ -936,7 +936,7 @@ try {
 import { NotFound, BadRequest, GeneralError } from '@feathersjs/errors'
 
 try {
-  await feathersService.get(999)
+  await feathersAdapter.get(999)
 } catch (error) {
   if (error instanceof NotFound) {
     console.log('User not found')
@@ -945,7 +945,7 @@ try {
 
 // Database constraint violations
 try {
-  await feathersService.create({ 
+  await feathersAdapter.create({ 
     email: 'existing@example.com' 
   })
 } catch (error) {
@@ -972,7 +972,7 @@ The adapter provides consistent error handling across different databases:
 
 // Example error handling
 try {
-  await service.create({ email: 'duplicate@example.com' })
+  await adapter.create({ email: 'duplicate@example.com' })
 } catch (error) {
   if (error.message.includes('UNIQUE constraint failed')) {
     // SQLite
@@ -990,14 +990,14 @@ try {
 
 ```typescript
 // From @feathersjs/knex or similar
-const oldService = new KnexService({
+const oldAdapter = new KnexAdapter({
   Model: db,
   name: 'users'
 })
 
 // To @wingshq/db0 (FeathersJS compatible)
-import { FeathersDb0Service } from '@wingshq/db0/feathers'
-const newService = new FeathersDb0Service({
+import { FeathersDb0Adapter } from '@wingshq/db0/feathers'
+const newAdapter = new FeathersDb0Adapter({
   db: createDatabase(/* connector */),
   table: 'users'
 })
@@ -1008,7 +1008,7 @@ const newService = new FeathersDb0Service({
 ```typescript
 // FeathersJS style
 try {
-  const user = await service.get(id)
+  const user = await adapter.get(id)
 } catch (error) {
   if (error.name === 'NotFound') {
     // Handle not found
@@ -1016,17 +1016,17 @@ try {
 }
 
 // Wings style
-const user = await service.get(id)
+const user = await adapter.get(id)
 if (user === null) {
   // Handle not found
 }
 
 // Bulk operations
 // FeathersJS style
-await service.patch(null, { archived: true }, { query })
+await adapter.patch(null, { archived: true }, { query })
 
 // Wings style
-await service.patchMany({ archived: true }, { query, allowAll: false })
+await adapter.patchMany({ archived: true }, { query, allowAll: false })
 ```
 
 ### Schema Definition
@@ -1048,8 +1048,8 @@ await db.exec(`
   CREATE INDEX idx_users_active ON users(active);
 `)
 
-// Then use with the service
-const userService = new Db0Service({
+// Then use with the adapter
+const userAdapter = new Db0Adapter({
   db,
   table: 'users',
   dialect: 'sqlite'
@@ -1058,7 +1058,7 @@ const userService = new Db0Service({
 
 ## TypeScript Support
 
-### Type-Safe Services
+### Type-Safe Adapters
 
 ```typescript
 interface User {
@@ -1071,7 +1071,7 @@ interface User {
   updatedAt: string
 }
 
-const users = new Db0Service<User>({
+const users = new Db0Adapter<User>({
   db,
   table: 'users'
 })
@@ -1097,14 +1097,14 @@ await users.create({
 ### Generic Types
 
 ```typescript
-// Service with custom ID type
+// Adapter with custom ID type
 interface Document {
   uuid: string
   title: string
   content: string
 }
 
-const docs = new Db0Service<Document>({
+const docs = new Db0Adapter<Document>({
   db,
   table: 'documents',
   idField: 'uuid'
@@ -1212,10 +1212,10 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { createDatabase } from 'db0'
 import sqlite from 'db0/connectors/better-sqlite3'
 import postgres from 'db0/connectors/postgresql'
-import { Db0Service } from '@wingshq/db0'
+import { Db0Adapter } from '@wingshq/db0'
 
-describe('UserService', () => {
-  let service: Db0Service<User>
+describe('UserAdapter', () => {
+  let adapter: Db0Adapter<User>
   
   beforeEach(async () => {
     // Choose database based on environment
@@ -1277,7 +1277,7 @@ describe('UserService', () => {
       `)
     }
     
-    service = new Db0Service<User>({
+    adapter = new Db0Adapter<User>({
       db,
       table: 'users',
       dialect
@@ -1285,13 +1285,13 @@ describe('UserService', () => {
   })
   
   it('should enforce unique emails', async () => {
-    await service.create({ 
+    await adapter.create({ 
       email: 'test@example.com', 
       name: 'Test' 
     })
     
     await expect(
-      service.create({ 
+      adapter.create({ 
         email: 'test@example.com', 
         name: 'Duplicate' 
       })

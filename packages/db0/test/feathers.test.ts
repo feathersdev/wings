@@ -1,18 +1,18 @@
 import { beforeAll, describe } from 'vitest'
-import { service } from '../src/feathers.js'
+import { adapter } from '../src/feathers.js'
 import { commonTests, feathersTests, FEATHERS_CONFIG, TestConfig } from '@wingshq/adapter-tests'
 import { errorHandler } from '../src/error-handler.js'
 import { setupCleanDatabase, TestDatabaseSetup } from './connection.js'
 
 let dbSetup: TestDatabaseSetup
-let feathersService: any
+let feathersAdapter: any
 
 describe('db0 FeathersJS adapter', () => {
   beforeAll(async () => {
     dbSetup = await setupCleanDatabase('feathers', 'people', 'id')
     const TYPE = process.env.TEST_DB || 'sqlite'
 
-    feathersService = service<any>({
+    feathersAdapter = adapter<any>({
       db: dbSetup.db,
       table: 'people',
       idField: 'id',
@@ -20,7 +20,7 @@ describe('db0 FeathersJS adapter', () => {
     })
   })
 
-  const createService = () => feathersService
+  const createAdapter = () => feathersAdapter
 
   // Custom config for PostgreSQL integer IDs
   const customConfig: TestConfig = {
@@ -32,8 +32,8 @@ describe('db0 FeathersJS adapter', () => {
   }
 
   // Run common tests with FeathersJS configuration and error handler
-  commonTests(createService, 'id', customConfig, errorHandler)
+  commonTests(createAdapter, 'id', customConfig, errorHandler)
 
   // Run FeathersJS-specific tests
-  feathersTests(createService, 'id', customConfig)
+  feathersTests(createAdapter, 'id', customConfig)
 })

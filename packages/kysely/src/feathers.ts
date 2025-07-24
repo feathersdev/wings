@@ -84,8 +84,8 @@ export class FeathersKyselyAdapter<
     } as PatchData
 
     // When updating, preserve $select but remove other query constraints for the patch
-    const patchParams = params?.query?.$select 
-      ? { ...params, query: { $select: params.query.$select } } 
+    const patchParams = params?.query?.$select
+      ? { ...params, query: { $select: params.query.$select } }
       : undefined
 
     const result = await this.adapter.patch(id, updated, patchParams)

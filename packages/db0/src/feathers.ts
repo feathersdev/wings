@@ -1,6 +1,6 @@
 import { NotFound } from '@feathersjs/errors'
-import type { Db0Service, SqlServiceOptions, DbRecord, Db0Params, Paginated } from './service.js'
-import { service as db0Service } from './service.js'
+import type { Db0Adapter, Db0AdapterOptions, DbRecord, Db0Params, Paginated } from './service.js'
+import { adapter as db0Adapter } from './service.js'
 import type { Primitive } from 'db0'
 
 // FeathersJS types
@@ -22,22 +22,22 @@ export interface FeathersServiceInterface<T> {
 }
 
 /**
- * FeathersJS-compatible wrapper for Db0Service.
+ * FeathersJS-compatible wrapper for Db0Adapter.
  * Provides backward compatibility with FeathersJS service interface.
  */
-export class FeathersDb0Service<T extends DbRecord> implements FeathersServiceInterface<T> {
-  private wingsService: Db0Service<T>
+export class FeathersDb0Adapter<T extends DbRecord> implements FeathersServiceInterface<T> {
+  private wingsAdapter: Db0Adapter<T>
 
-  constructor(options: SqlServiceOptions) {
-    this.wingsService = db0Service<T>(options)
+  constructor(options: Db0AdapterOptions) {
+    this.wingsAdapter = db0Adapter<T>(options)
   }
 
   get id() {
-    return this.wingsService.id
+    return this.wingsAdapter.id
   }
 
   get options() {
-    return this.wingsService.options
+    return this.wingsAdapter.options
   }
 
   /**
@@ -49,12 +49,12 @@ export class FeathersDb0Service<T extends DbRecord> implements FeathersServiceIn
 
     if (shouldPaginate) {
       // Always return paginated for FeathersJS compatibility
-      const result = await this.wingsService.find({ ...params, paginate: true })
+      const result = await this.wingsAdapter.find({ ...params, paginate: true })
       return result
     } else {
       // User explicitly requested no pagination
       const wingsParams: Db0Params & { paginate?: false } = { ...params, paginate: false }
-      return this.wingsService.find(wingsParams)
+      return this.wingsAdapter.find(wingsParams)
     }
   }
 
@@ -62,7 +62,7 @@ export class FeathersDb0Service<T extends DbRecord> implements FeathersServiceIn
    * Get a single record by ID. Throws NotFound if not found.
    */
   async get(id: Primitive, params?: FeathersParams): Promise<T> {
-    const result = await this.wingsService.get(id, params as Db0Params)
+    const result = await this.wingsAdapter.get(id, params as Db0Params)
     if (result === null) {
       throw new NotFound(`No record found for id '${id}'`)
     }
@@ -73,7 +73,7 @@ export class FeathersDb0Service<T extends DbRecord> implements FeathersServiceIn
    * Create one or more records.
    */
   async create(data: Partial<T> | Array<Partial<T>>, _params?: FeathersParams): Promise<T | T[]> {
-    return this.wingsService.create(data as any) as Promise<T | T[]>
+    return this.wingsAdapter.create(data as any) as Promise<T | T[]>
   }
 
   /**
@@ -81,7 +81,7 @@ export class FeathersDb0Service<T extends DbRecord> implements FeathersServiceIn
    */
   async update(id: Primitive, data: T, params?: FeathersParams): Promise<T> {
     // Wings doesn't have update, so we use patch with complete data
-    const result = await this.wingsService.patch(id, data as any, params as Db0Params)
+    const result = await this.wingsAdapter.patch(id, data as any, params as Db0Params)
     if (result === null) {
       throw new NotFound(`No record found for id '${id}'`)
     }
@@ -95,10 +95,10 @@ export class FeathersDb0Service<T extends DbRecord> implements FeathersServiceIn
   async patch(id: Primitive | null, data: Partial<T>, params?: FeathersParams): Promise<T | T[]> {
     if (id === null) {
       // Bulk patch operation - use patchMany with allowAll
-      return this.wingsService.patchMany(data as any, { ...params, allowAll: true } as any)
+      return this.wingsAdapter.patchMany(data as any, { ...params, allowAll: true } as any)
     } else {
       // Single patch operation
-      const result = await this.wingsService.patch(id, data as any, params as Db0Params)
+      const result = await this.wingsAdapter.patch(id, data as any, params as Db0Params)
       if (result === null) {
         throw new NotFound(`No record found for id '${id}'`)
       }
@@ -113,10 +113,10 @@ export class FeathersDb0Service<T extends DbRecord> implements FeathersServiceIn
   async remove(id: Primitive | null, params?: FeathersParams): Promise<T | T[]> {
     if (id === null) {
       // Bulk remove operation - use removeMany with allowAll
-      return this.wingsService.removeMany({ ...params, allowAll: true } as any)
+      return this.wingsAdapter.removeMany({ ...params, allowAll: true } as any)
     } else {
       // Single remove operation
-      const result = await this.wingsService.remove(id, params as Db0Params)
+      const result = await this.wingsAdapter.remove(id, params as Db0Params)
       if (result === null) {
         throw new NotFound(`No record found for id '${id}'`)
       }
@@ -128,6 +128,10 @@ export class FeathersDb0Service<T extends DbRecord> implements FeathersServiceIn
 /**
  * Create a FeathersJS-compatible db0 service.
  */
-export function service<T extends DbRecord>(options: SqlServiceOptions): FeathersDb0Service<T> {
-  return new FeathersDb0Service<T>(options)
+export function adapter<T extends DbRecord>(options: Db0AdapterOptions): FeathersDb0Adapter<T> {
+  return new FeathersDb0Adapter<T>(options)
 }
+
+// Backwards compatibility
+export const service = adapter
+export const FeathersDb0Service = FeathersDb0Adapter
