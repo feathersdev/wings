@@ -454,8 +454,8 @@ export class KyselyAdapter<
 
       // Build count query with only WHERE conditions (no sorting or field selection needed)
       const countQb = this.buildCountQuery(filters, countQuery as any)
-      const countResult = (await countQb.executeTakeFirst()) as { total: number } | undefined
-      const total = countResult?.total || 0
+      const countResult = (await countQb.executeTakeFirst()) as { total: number | string } | undefined
+      const total = Number(countResult?.total) || 0
 
       // Apply pagination
       // SQLite requires LIMIT when using OFFSET

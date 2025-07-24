@@ -1,11 +1,10 @@
 import { describe, beforeAll, afterAll } from 'vitest'
-import { createDatabase } from 'db0'
-import sqlite from 'db0/connectors/better-sqlite3'
 import { Db0Service } from '../src/service.js'
 import { errorHandler } from '../src/error-handler.js'
-import { fullWingsTests, WINGS_CONFIG } from '@wingshq/adapter-tests'
+import { fullWingsTests, WINGS_CONFIG, TestConfig } from '@wingshq/adapter-tests'
 import type { DbRecord } from '../src/service.js'
 import type { Person } from '@wingshq/adapter-tests'
+import { setupCleanDatabase, TestDatabaseSetup } from './connection.js'
 
 interface User extends DbRecord, Person {
   id: number
@@ -14,23 +13,34 @@ interface User extends DbRecord, Person {
   created?: boolean
 }
 
-const db = createDatabase(sqlite({ name: ':memory:' }))
-const service = new Db0Service<User>({ db, table: 'users', idField: 'id' })
-
-const clean = async () => {
-  await db.sql`DROP TABLE IF EXISTS users`
-  await db.sql`CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT, age INTEGER, created BOOLEAN)`
-}
+let dbSetup: TestDatabaseSetup
+let service: Db0Service<User>
 
 describe('Db0 Adapter - Comprehensive Test Suite', () => {
-  beforeAll(clean)
+  beforeAll(async () => {
+    dbSetup = await setupCleanDatabase('wings', 'users')
+    const TYPE = process.env.TEST_DB || 'sqlite'
+    service = new Db0Service<User>({
+      db: dbSetup.db,
+      table: 'users',
+      idField: 'id',
+      dialect: TYPE === 'postgres' ? 'postgres' : 'sqlite'
+    })
+  })
+
   afterAll(async () => {
-    await db.sql`DROP TABLE IF EXISTS users`
+    await dbSetup.cleanup()
   })
 
   // Create service factory function
   const createService = () => service
 
+  // Custom config for PostgreSQL integer IDs
+  const customConfig: TestConfig = {
+    ...WINGS_CONFIG,
+    nonExistentId: process.env.TEST_DB === 'postgres' ? 999999 : '568225fbfe21222432e836ff'
+  }
+
   // Run the full Wings test suite (common + Wings-specific tests) with error handler
-  fullWingsTests(createService, 'id', WINGS_CONFIG, errorHandler)
+  fullWingsTests(createService, 'id', customConfig, errorHandler)
 })

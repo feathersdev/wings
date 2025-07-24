@@ -9,6 +9,11 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        test-db: [sqlite, postgres]
+        
+    name: Test with ${{ matrix.test-db }}
 
     services:
       postgres:
@@ -18,7 +23,7 @@ jobs:
           POSTGRES_PASSWORD: postgres
           POSTGRES_USER: postgres
         ports:
-          - 5432:5432
+          - 15432:5432
         options: >-
           --health-cmd pg_isready
           --health-interval 10s
@@ -110,7 +115,7 @@ jobs:
           pnpm --filter=@wingshq/kysely test
         env:
           CI: true
-          TEST_DB: postgres
+          TEST_DB: ${{ matrix.test-db }}
           NODE_OPTIONS: --experimental-vm-modules
 
       - name: Upload coverage to Codecov

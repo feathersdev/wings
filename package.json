@@ -36,7 +36,10 @@
     "update-dependencies": "ncu -u && pnpm -r exec ncu -u",
     "test": "pnpm run lint && pnpm run compile && c8 lerna run test",
     "test:workspace": "pnpm run lint && pnpm run compile && vitest run --workspace",
-    "generate:adapter": "pinion run generators/adapter.ts"
+    "generate:adapter": "pinion run generators/adapter.ts",
+    "db:start": "docker-compose up -d postgres",
+    "db:stop": "docker-compose down",
+    "db:test": "docker-compose up -d postgres && sleep 2 && TEST_DB=postgres pnpm test"
   },
   "devDependencies": {
     "@feathershq/pinion": "^0.4.0-pre.3",

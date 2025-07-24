@@ -23,7 +23,14 @@ describe('FeathersJS Knex Adapter', () => {
     await dbSetup.cleanup()
   })
 
+  // For PostgreSQL, we need to use integer IDs for "not found" tests
+  const testConfig = {
+    ...FEATHERS_CONFIG,
+    // Use a large integer that won't exist instead of string IDs for PostgreSQL
+    nonExistentId: process.env.TEST_DB === 'postgres' ? 999999999 : '568225fbfe21222432e836ff'
+  }
+
   // Run the comprehensive test suites
-  commonTests(createService, 'id', FEATHERS_CONFIG, errorHandler)
-  feathersTests(createService, 'id')
+  commonTests(createService, 'id', testConfig, errorHandler)
+  feathersTests(createService, 'id', testConfig)
 })

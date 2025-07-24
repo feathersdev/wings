@@ -191,7 +191,14 @@ export class Db0Service<RT extends DbRecord> {
       limit = `LIMIT ${Number(query.$limit)}`
     }
     if (query.$skip !== undefined) {
-      if (!limit) limit = 'LIMIT -1'
+      // PostgreSQL doesn't support negative LIMIT, use ALL instead
+      if (!limit) {
+        if (this.dialect === 'postgres') {
+          limit = 'LIMIT ALL'
+        } else {
+          limit = 'LIMIT -1'
+        }
+      }
       offset = `OFFSET ${Number(query.$skip)}`
     }
 

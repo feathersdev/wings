@@ -1,37 +1,36 @@
-import { describe } from 'vitest'
+import { beforeAll, describe } from 'vitest'
 import { service } from '../src/feathers.js'
-import { commonTests, feathersTests, FEATHERS_CONFIG } from '@wingshq/adapter-tests'
+import { commonTests, feathersTests, FEATHERS_CONFIG, TestConfig } from '@wingshq/adapter-tests'
 import { errorHandler } from '../src/error-handler.js'
-import { createDatabase } from 'db0'
-import sqlite from 'db0/connectors/better-sqlite3'
+import { setupCleanDatabase, TestDatabaseSetup } from './connection.js'
+
+let dbSetup: TestDatabaseSetup
+let feathersService: any
 
 describe('db0 FeathersJS adapter', () => {
-  const createService = () => {
-    const db = createDatabase(sqlite({ name: ':memory:' }))
+  beforeAll(async () => {
+    dbSetup = await setupCleanDatabase('feathers', 'people', 'id')
+    const TYPE = process.env.TEST_DB || 'sqlite'
 
-    // Initialize database and tables
-    db.prepare(`DROP TABLE IF EXISTS people`).run()
-    db.prepare(
-      `CREATE TABLE people (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT,
-      age INTEGER,
-      email TEXT,
-      created INTEGER DEFAULT 0
-    )`
-    ).run()
-
-    return service<any>({
-      db,
+    feathersService = service<any>({
+      db: dbSetup.db,
       table: 'people',
       idField: 'id',
-      dialect: 'sqlite'
+      dialect: TYPE === 'postgres' ? 'postgres' : 'sqlite'
     })
+  })
+
+  const createService = () => feathersService
+
+  // Custom config for PostgreSQL integer IDs
+  const customConfig: TestConfig = {
+    ...FEATHERS_CONFIG,
+    nonExistentId: process.env.TEST_DB === 'postgres' ? 999999 : '568225fbfe21222432e836ff'
   }
 
   // Run common tests with FeathersJS configuration and error handler
-  commonTests(createService, 'id', FEATHERS_CONFIG, errorHandler)
+  commonTests(createService, 'id', customConfig, errorHandler)
 
   // Run FeathersJS-specific tests
-  feathersTests(createService, 'id')
+  feathersTests(createService, 'id', customConfig)
 })

@@ -16,6 +16,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   - Example: `pinion run generators/adapter.ts kysely "A high-performance SQL query builder adapter"`
   - **IMPORTANT**: When running the generator programmatically, always use command-line arguments to avoid interactive prompts
 
+### Database Testing
+
+- **Start PostgreSQL for local testing**: `docker-compose up -d postgres`
+- **Stop PostgreSQL**: `docker-compose down`
+- **Test with PostgreSQL**: `TEST_DB=postgres npm test` (from individual adapter directory)
+
+**IMPORTANT**: SQL adapters (knex, db0, kysely) support testing with both SQLite (default) and PostgreSQL:
+- SQLite is used by default for fast local testing
+- PostgreSQL tests run in CI and can be run locally with `TEST_DB=postgres`
+- PostgreSQL runs on port 15432 locally to avoid conflicts
+- All SQL adapters must handle database-specific differences (e.g., LIMIT -1 vs LIMIT ALL)
+
 ### Package-specific commands
 
 Each package in `/packages` has its own commands:

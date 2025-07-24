@@ -16,6 +16,7 @@ export const connection = (DB: string, testName?: string) => {
       client: 'postgresql',
       connection: {
         host: 'localhost',
+        port: 15432,
         database: 'feathers',
         user: 'postgres',
         password: 'postgres'

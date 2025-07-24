@@ -5,13 +5,13 @@ import {
   Person,
   ServiceFactory,
   WINGS_CONFIG,
-  FEATHERS_CONFIG
+  FEATHERS_CONFIG,
+  TestConfig
 } from '@wingshq/adapter-tests'
 import { Kysely } from 'kysely'
-import { SqliteDialect } from 'kysely'
-import Database from 'better-sqlite3'
 import { KyselyAdapter } from '../src'
 import { FeathersKyselyAdapter } from '../src/feathers'
+import { setupCleanDatabase, TestDatabaseSetup } from './connection'
 
 // Extend Person type to include additional fields for tests
 interface ExtendedPerson extends Person {
@@ -27,71 +27,66 @@ interface TestDatabase {
 // Use predefined configurations from adapter-tests package
 // WINGS_CONFIG and FEATHERS_CONFIG are imported above
 
-// Helper to create database and table
-async function createDatabase(): Promise<Kysely<TestDatabase>> {
-  const db = new Kysely<TestDatabase>({
-    dialect: new SqliteDialect({
-      database: new Database(':memory:')
-    })
-  })
+// Create custom configs with proper nonExistentId for PostgreSQL
+const wingsConfig: TestConfig = {
+  ...WINGS_CONFIG,
+  nonExistentId: process.env.TEST_DB === 'postgres' ? 999999 : '568225fbfe21222432e836ff'
+}
 
-  // Create test table
-  await db.schema
-    .createTable('people')
-    .addColumn('id', 'integer', (col) => col.primaryKey().autoIncrement())
-    .addColumn('name', 'text', (col) => col.notNull())
-    .addColumn('age', 'integer') // Allow NULL values for age
-    .addColumn('created', 'boolean', (col) => col.defaultTo(false))
-    .addColumn('email', 'text')
-    .execute()
-
-  return db
+const feathersConfig: TestConfig = {
+  ...FEATHERS_CONFIG,
+  nonExistentId: process.env.TEST_DB === 'postgres' ? 999999 : '568225fbfe21222432e836ff'
 }
 
 describe('Kysely Adapter Tests', () => {
+  let dbSetup: TestDatabaseSetup
   let db: Kysely<TestDatabase>
 
   beforeEach(async () => {
-    db = await createDatabase()
+    dbSetup = await setupCleanDatabase('kysely-test', 'people')
+    db = dbSetup.db
   })
 
   afterEach(async () => {
-    await db.destroy()
+    await dbSetup.cleanup()
   })
 
   describe('Wings Interface', () => {
     let adapter: KyselyAdapter<ExtendedPerson>
 
     beforeEach(() => {
+      const TYPE = process.env.TEST_DB || 'sqlite'
       adapter = new KyselyAdapter<Person>({
         Model: db,
         table: 'people',
         id: 'id',
-        dialect: 'sqlite'
+        dialect: TYPE === 'postgres' ? 'postgres' : 'sqlite'
       })
     })
 
     it('instantiated the Wings adapter', () => {
+      const TYPE = process.env.TEST_DB || 'sqlite'
       expect(adapter).toBeDefined()
       expect(adapter).toBeInstanceOf(KyselyAdapter)
       expect(adapter.id).toBe('id')
       expect(adapter.table).toBe('people')
-      expect(adapter.dialect).toBe('sqlite')
+      expect(adapter.dialect).toBe(TYPE === 'postgres' ? 'postgres' : 'sqlite')
     })
 
     const serviceFactory: ServiceFactory<KyselyAdapter<ExtendedPerson>> = () => adapter
-    fullWingsTests(serviceFactory, 'id', WINGS_CONFIG)
+    fullWingsTests(serviceFactory, 'id', wingsConfig)
   })
 
   describe('FeathersJS Interface', () => {
     let adapter: FeathersKyselyAdapter<ExtendedPerson>
 
     beforeEach(() => {
+      const TYPE = process.env.TEST_DB || 'sqlite'
       adapter = new FeathersKyselyAdapter<Person>({
         Model: db,
         table: 'people',
         id: 'id',
-        dialect: 'sqlite'
+        dialect: TYPE === 'postgres' ? 'postgres' : 'sqlite'
       })
     })
 
@@ -103,18 +98,19 @@ describe('Kysely Adapter Tests', () => {
     })
 
     const serviceFactory: ServiceFactory<FeathersKyselyAdapter<ExtendedPerson>> = () => adapter
-    fullFeathersTests(serviceFactory, 'id', FEATHERS_CONFIG)
+    fullFeathersTests(serviceFactory, 'id', feathersConfig)
   })
 
   describe('Kysely-specific features', () => {
     let adapter: KyselyAdapter<ExtendedPerson>
 
     beforeEach(() => {
+      const TYPE = process.env.TEST_DB || 'sqlite'
       adapter = new KyselyAdapter<Person>({
         Model: db,
         table: 'people',
         id: 'id',
-        dialect: 'sqlite'
+        dialect: TYPE === 'postgres' ? 'postgres' : 'sqlite'
       })
     })
 
