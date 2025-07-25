@@ -440,9 +440,9 @@ await service.find({ query: { deletedAt: null } })
 await service.find({ query: { deletedAt: { $ne: null } } })
 ```
 
-### Array Operations
+### Array Query Operations
 
-#### Query Operations
+#### Contains
 
 Array contains value:
 
@@ -490,6 +490,8 @@ await service.find({
   }
 })
 ```
+
+### Array Update Operations
 
 #### $pop
 
