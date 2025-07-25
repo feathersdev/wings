@@ -4,37 +4,56 @@ import { AdapterContext } from '../adapter'
 interface Context extends AdapterContext {}
 
 const template = ({ uppername }: Context) => `
-import { AdapterInterface, AdapterOptions, AdapterParams, Id, Paginated } from '@wingshq/adapter-commons'
+import { 
+  AdapterBase,
+  AdapterServiceOptions,
+  AdapterParams,
+  AdapterOptions,
+  Id,
+  Paginated,
+  PartialType
+} from '@wingshq/adapter-commons'
 
-export interface ${uppername}Options extends AdapterOptions {}
+export interface ${uppername}Options extends AdapterOptions {
+  // Add ${uppername}-specific options here
+}
 
-export interface ${uppername}Params extends AdapterParams {}
+export interface ${uppername}Params extends AdapterParams {
+  // Add ${uppername}-specific params here
+}
 
+/**
+ * ${uppername} adapter implementing the Wings interface
+ */
 export class ${uppername}Adapter<
-  Result = unknown,
+  Result = any,
   Data = Partial<Result>,
-  PatchData = Partial<Data>,
-  UpdateData = Data,
+  PatchData = PartialType<Result>,
+  Options extends ${uppername}Options = ${uppername}Options,
   Params extends ${uppername}Params = ${uppername}Params
-> implements AdapterInterface<Result, Data, PatchData, UpdateData, ${uppername}Options, Params>
-{
-  constructor(public options: ${uppername}Options) {
+> extends AdapterBase<Result, Data, PatchData, ${uppername}Options, ${uppername}Params> {
+  constructor(public options: Options) {
+    super(options)
   }
 
-  get id() {
-    return this.options.id
-  }
+  // Wings Interface Methods (null-safe returns)
 
-  async find(params: Params & { paginate: true }): Promise<Paginated<Result>>
   async find(params?: Params & { paginate?: false }): Promise<Result[]>
-  async find(params?: Params & { paginate?: boolean }): Promise<Result[] | Paginated<Result>> {
+  async find(params: Params & { paginate: true }): Promise<Paginated<Result>>
+  async find(params?: Params): Promise<Result[] | Paginated<Result>> {
+    const isPaginated = params?.paginate === true
+    
+    // TODO: Implement ${uppername} find logic
     const data: Result[] = []
 
-    if (params?.paginate) {
+    if (isPaginated) {
+      // Get total count for pagination
+      const total = 0 // TODO: Implement count logic
+      
       return {
-        total: 0,
-        limit: 0,
-        skip: 0,
+        total,
+        limit: params.query?.$limit || 0,
+        skip: params.query?.$skip || 0,
         data
       }
     }
@@ -42,34 +61,73 @@ export class ${uppername}Adapter<
     return data
   }
 
-  async get(id: Id, params?: Params): Promise<Result> {
-   return { id }
+  async get(id: Id, params?: Params): Promise<Result | null> {
+    // TODO: Implement ${uppername} get logic
+    // Return null if not found (Wings pattern)
+    return null
   }
 
   async create(data: Data[], params?: Params): Promise<Result[]>
   async create(data: Data, params?: Params): Promise<Result>
   async create(data: Data | Data[], params?: Params): Promise<Result[] | Result> {
     if (Array.isArray(data)) {
+      // TODO: Implement bulk create
       return Promise.all(data.map((current) => this.create(current, params)))
     }
 
-    return data
+    // TODO: Implement single create
+    return data as Result
   }
 
-  async update(id: Id, data: UpdateData, params?: Params): Promise<Result> {
-    return data
+  async patch(id: Id, data: PatchData, params?: Params): Promise<Result | null> {
+    // Wings safety: prevent accidental bulk operations
+    if (id === null || id === undefined) {
+      throw new Error('patch() requires a non-null id. Use patchMany() for bulk operations.')
+    }
+
+    // TODO: Implement ${uppername} patch logic
+    // Return null if not found (Wings pattern)
+    return null
   }
 
-  async patch(id: Id, data: PatchData, params?: Params): Promise<Result>
-  async patch(id: null, data: PatchData, params?: Params): Promise<Result[]>
-  async patch(id: Id | null, data: PatchData, params?: Params): Promise<Result[] | Result> {
-    return data
+  async patchMany(data: PatchData, params?: Params & { allowAll?: boolean }): Promise<Result[]> {
+    const query = params?.query || {}
+    
+    // Safety check for bulk operations
+    if (Object.keys(query).length === 0 && !params?.allowAll) {
+      throw new Error('patchMany: No query provided. Use allowAll:true to patch all records')
+    }
+
+    // TODO: Implement bulk patch logic
+    return []
   }
 
-  async remove(id: Id, params?: Params): Promise<Result>
-  async remove(id: null, params?: Params): Promise<Result[]>
-  async remove(id: Id | null, params?: Params): Promise<Result[] | Result> {
-    return {}
+  async remove(id: Id, params?: Params): Promise<Result | null> {
+    // Wings safety: prevent accidental bulk operations
+    if (id === null || id === undefined) {
+      throw new Error('remove() requires a non-null id. Use removeMany() for bulk operations.')
+    }
+
+    // TODO: Implement ${uppername} remove logic
+    // Return null if not found (Wings pattern)
+    return null
+  }
+
+  async removeMany(params?: Params & { allowAll?: boolean }): Promise<Result[]> {
+    const query = params?.query || {}
+    
+    // Safety check for bulk operations
+    if (Object.keys(query).length === 0 && !params?.allowAll) {
+      throw new Error('removeMany: No query provided. Use allowAll:true to remove all records')
+    }
+
+    // TODO: Implement bulk remove logic
+    return []
+  }
+
+  async removeAll(): Promise<Result[]> {
+    // TODO: Implement remove all logic
+    return []
   }
 }
 `

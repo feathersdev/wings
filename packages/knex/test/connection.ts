@@ -1,12 +1,13 @@
-export const connection = (DB: string) => {
+export const connection = (DB: string, testName?: string) => {
   if (DB === 'mysql') {
     return {
-      client: 'mysql',
+      client: 'mysql2',
       connection: {
-        host: '127.0.0.1',
-        user: 'root',
-        password: '',
-        database: 'feathers_knex'
+        host: 'localhost',
+        port: 23306,
+        user: 'mysql',
+        password: 'mysql',
+        database: 'feathers'
       }
     }
   }
@@ -16,6 +17,7 @@ export const connection = (DB: string) => {
       client: 'postgresql',
       connection: {
         host: 'localhost',
+        port: 15432,
         database: 'feathers',
         user: 'postgres',
         password: 'postgres'
@@ -24,9 +26,10 @@ export const connection = (DB: string) => {
   }
 
   return {
-    client: 'sqlite3',
+    client: 'better-sqlite3',
     connection: {
-      filename: './db.sqlite'
-    }
+      filename: testName ? `./db-${testName}.sqlite` : './db.sqlite'
+    },
+    useNullAsDefault: true
   }
 }

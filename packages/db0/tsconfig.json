@@ -1,0 +1,22 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "target": "es2022",
+    "lib": ["es2022"],
+    "outDir": "lib",
+    "module": "esnext",
+    "moduleResolution": "node",
+    "allowImportingTsExtensions": false,
+    "noEmit": false
+  },
+  "include": [
+    "src/**/*.ts",
+    "test/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "lib",
+    "esm",
+    "test/cf-worker/**"
+  ]
+}

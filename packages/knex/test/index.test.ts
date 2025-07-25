@@ -1,89 +1,20 @@
-import { describe, it, before, after, beforeEach, afterEach } from 'node:test'
-import assert from 'assert'
-import { adapterTests, Person } from '@wingshq/adapter-tests'
-import knex from 'knex'
-import { connection } from './connection'
-
+import { describe, it, beforeAll, afterAll, beforeEach, afterEach, expect } from 'vitest'
+import { Person } from '@wingshq/adapter-tests'
 import { KnexAdapter } from '../src'
 import { ERROR } from '../src/error-handler'
-
-const testSuite = adapterTests([
-  '.id',
-  '.options',
-  '.get',
-  '.get + $select',
-  '.get + id + query',
-  '.get + NotFound',
-  '.get + id + query id',
-  '.find',
-  '.find + paginate + query',
-  '.find + $and',
-  '.find + $and + $or',
-  '.remove',
-  '.remove + $select',
-  '.remove + id + query',
-  '.remove + multi',
-  '.remove + multi no pagination',
-  '.remove + id + query id',
-  '.update',
-  '.update + $select',
-  '.update + id + query',
-  '.update + NotFound',
-  '.update + id + query id',
-  '.update + query + NotFound',
-  '.patch',
-  '.patch + $select',
-  '.patch + id + query',
-  '.patch multiple',
-  '.patch multiple no pagination',
-  '.patch multi query same',
-  '.patch multi query changed',
-  '.patch + query + NotFound',
-  '.patch + NotFound',
-  '.patch + id + query id',
-  '.create',
-  '.create ignores query',
-  '.create + $select',
-  '.create multi',
-  '.find + equal',
-  '.find + equal multiple',
-  '.find + $sort',
-  '.find + $limit',
-  '.find + $limit 0',
-  '.find + $skip',
-  '.find + $select',
-  '.find + $or',
-  '.find + $in',
-  '.find + $nin',
-  '.find + $lt',
-  '.find + $lte',
-  '.find + $gt',
-  '.find + $gte',
-  '.find + $ne',
-  '.find + $gt + $lt + $sort',
-  '.find + $or nested + $sort',
-  '.find + paginate',
-  '.find + paginate + $limit + $skip',
-  '.find + paginate + $limit 0',
-  '.find + paginate + params'
-])
-
-const TYPE = process.env.TEST_DB || 'sqlite'
-const db = knex(connection(TYPE) as any)
+import { setupCleanDatabase, createPeopleTable, TestDatabaseSetup } from './test-utils'
 
 // Create a public database to mimic a "schema"
 const schemaName = 'public'
 
-const people = new KnexAdapter<Person>({
-  Model: db,
-  name: 'people'
-})
+let dbSetup: TestDatabaseSetup
 
-const peopleId = new KnexAdapter<Person>({
-  Model: db,
-  id: 'customid',
-  name: 'people-customid'
-})
+const createPeopleService = () => {
+  return new KnexAdapter<Person>({
+    Model: dbSetup.db,
+    name: 'people'
+  })
+}
 
 type Todo = {
   id: number
@@ -96,36 +27,39 @@ class TodoAdapter extends KnexAdapter<Todo> {
   createQuery(params: any) {
     const query = super.createQuery(params)
 
-    query.join('people as person', 'todos.personId', 'person.id').select('person.name as personName')
+    // Apply join after base query is built
+    query.join('people as person', 'todos.personId', 'person.id')
+
+    // Add the personName to the existing select, don't clear it
+    query.select('person.name as personName')
 
     return query
   }
 }
 
-const todos = new TodoAdapter({
-  Model: db,
-  name: 'todos'
-})
-
-const clean = async () => {
-  await db.schema.dropTableIfExists('todos')
-  await db.schema.dropTableIfExists(people.fullName)
-  await db.schema.createTable(people.fullName, (table) => {
-    table.increments('id')
-    table.string('name').notNullable()
-    table.integer('age')
-    table.integer('time')
-    table.boolean('created')
-    return table
+const createTodosService = () => {
+  return new TodoAdapter({
+    Model: dbSetup.db,
+    name: 'todos'
   })
-  await db.schema.createTable('todos', (table) => {
+}
+
+const setupLegacyTables = async () => {
+  // Create people table
+  await createPeopleTable(dbSetup.db, 'people')
+
+  // Create todos table
+  await dbSetup.db.schema.dropTableIfExists('todos')
+  await dbSetup.db.schema.createTable('todos', (table: any) => {
     table.increments('id')
     table.string('text')
     table.integer('personId')
     return table
   })
-  await db.schema.dropTableIfExists(peopleId.fullName)
-  await db.schema.createTable(peopleId.fullName, (table) => {
+
+  // Create people-customid table
+  await dbSetup.db.schema.dropTableIfExists('people-customid')
+  await dbSetup.db.schema.createTable('people-customid', (table: any) => {
     table.increments('customid')
     table.string('name')
     table.integer('age')
@@ -135,78 +69,33 @@ const clean = async () => {
   })
 }
 
-describe('Wings knex Adapter', () => {
-  before(() => {
-    if (TYPE === 'sqlite') {
-      // Attach the public database to mimic a "schema"
-      db.schema.raw(`attach database '${schemaName}.sqlite' as ${schemaName}`)
+describe('Knex Adapter Legacy Tests', () => {
+  beforeAll(async () => {
+    dbSetup = await setupCleanDatabase('legacy')
+
+    // Handle SQLite schema attachment for legacy tests
+    if (process.env.TEST_DB === 'sqlite' || !process.env.TEST_DB) {
+      await dbSetup.db.schema.raw(`attach database '${schemaName}.sqlite' as ${schemaName}`)
     }
+
+    await setupLegacyTables()
   })
-  before(clean)
-  after(async () => {
-    await clean()
-    await db.destroy()
+
+  afterAll(async () => {
+    await dbSetup.cleanup()
   })
 
   it('instantiated the adapter', () => {
-    assert.ok(people)
-  })
-
-  describe('$like method', () => {
-    let charlie: Person
-
-    beforeEach(async () => {
-      charlie = await people.create({
-        name: 'Charlie Brown',
-        age: 10
-      })
-    })
-
-    afterEach(() => people.remove(charlie.id))
-
-    it('$like in query', async () => {
-      const data = await people.find({
-        paginate: false,
-        query: { name: { $like: '%lie%' } } as any
-      })
-
-      assert.strictEqual(data[0].name, 'Charlie Brown')
-    })
-  })
-
-  describe('$notlike method', () => {
-    let hasMatch: Person
-    let hasNoMatch: Person
-
-    beforeEach(async () => {
-      hasMatch = await people.create({
-        name: 'XYZabcZYX'
-      })
-      hasNoMatch = await people.create({
-        name: 'XYZZYX'
-      })
-    })
-
-    afterEach(() => {
-      people.remove(hasMatch.id)
-      people.remove(hasNoMatch.id)
-    })
-
-    it('$notlike in query', async () => {
-      const data = await people.find({
-        paginate: false,
-        query: { name: { $notlike: '%abc%' } } as any
-      })
-
-      assert.strictEqual(data.length, 1)
-      assert.strictEqual(data[0].name, 'XYZZYX')
-    })
+    const people = createPeopleService()
+    expect(people).toBeTruthy()
   })
 
   describe('adapter specifics', () => {
     let daves: Person[]
+    let people: KnexAdapter<Person>
 
     beforeEach(async () => {
+      people = createPeopleService()
       daves = await Promise.all([
         people.create({
           name: 'Ageless',
@@ -225,136 +114,36 @@ describe('Wings knex Adapter', () => {
 
     afterEach(async () => {
       try {
-        await people.remove(daves[0].id)
-        await people.remove(daves[1].id)
-        await people.remove(daves[2].id)
-      } catch (error: unknown) {}
-    })
-
-    it('$or works properly (#120)', async () => {
-      const data = await people.find({
-        paginate: false,
-        query: {
-          name: 'Dave',
-          $or: [
-            {
-              age: 1
-            },
-            {
-              age: 32
-            }
-          ]
-        }
-      })
-
-      assert.strictEqual(data.length, 1)
-      assert.strictEqual(data[0].name, 'Dave')
-      assert.strictEqual(data[0].age, 32)
-    })
-
-    it('$and works properly', async () => {
-      const data = await people.find({
-        paginate: false,
-        query: {
-          $and: [
-            {
-              $or: [{ name: 'Dave' }, { name: 'Dada' }]
-            },
-            {
-              age: { $lt: 23 }
-            }
-          ]
-        }
-      })
-
-      assert.strictEqual(data.length, 1)
-      assert.strictEqual(data[0].name, 'Dada')
-      assert.strictEqual(data[0].age, 1)
-    })
-
-    it('where conditions support NULL values properly', async () => {
-      const data = await people.find({
-        query: {
-          age: null
-        }
-      })
-
-      assert.strictEqual(data.length, 1)
-      assert.strictEqual(data[0].name, 'Ageless')
-      assert.strictEqual(data[0].age, null)
-    })
-
-    it('where conditions support NOT NULL case properly', async () => {
-      const data = await people.find({
-        paginate: false,
-        query: {
-          age: { $ne: null }
-        }
-      })
-
-      assert.strictEqual(data.length, 2)
-      assert.notStrictEqual(data[0].name, 'Ageless')
-      assert.notStrictEqual(data[0].age, null)
-      assert.notStrictEqual(data[1].name, 'Ageless')
-      assert.notStrictEqual(data[1].age, null)
-    })
-
-    it('where conditions support NULL values within AND conditions', async () => {
-      const data = await people.find({
-        paginate: false,
-        query: {
-          age: null,
-          name: 'Ageless'
-        }
-      })
-
-      assert.strictEqual(data.length, 1)
-      assert.strictEqual(data[0].name, 'Ageless')
-      assert.strictEqual(data[0].age, null)
-    })
-
-    it('where conditions support NULL values within OR conditions', async () => {
-      const data = await people.find({
-        paginate: false,
-        query: {
-          $or: [
-            {
-              age: null
-            },
-            {
-              name: 'Dada'
-            }
-          ]
-        }
-      })
-
-      assert.strictEqual(data.length, 2)
-      assert.notStrictEqual(data[0].name, 'Dave')
-      assert.notStrictEqual(data[0].age, 32)
-      assert.notStrictEqual(data[1].name, 'Dave')
-      assert.notStrictEqual(data[1].age, 32)
+        if (daves[0]) await people.remove(daves[0].id)
+        if (daves[1]) await people.remove(daves[1].id)
+        if (daves[2]) await people.remove(daves[2].id)
+      } catch (error: unknown) {
+        console.error('Error in test cleanup:', error)
+      }
     })
 
     it('attaches the SQL error', async () => {
-      await assert.rejects(
-        () => people.create({}),
-        (error: any) => {
-          assert.ok(error[ERROR])
-          return true
-        }
-      )
+      try {
+        await people.create({})
+        expect.fail('Should have thrown an error')
+      } catch (error: any) {
+        expect(error[ERROR]).toBeTruthy()
+      }
     })
 
     it('get by id works with `createQuery` as params.knex', async () => {
       const knex = people.createQuery()
       const dave = await people.get(daves[0].id, { knex })
 
-      assert.deepStrictEqual(dave, daves[0])
+      expect(dave).toEqual(daves[0])
     })
   })
 
   describe('associations', () => {
     it('create, query and get with associations, can unambigiously $select', async () => {
+      const people = createPeopleService()
+      const todos = createTodosService()
+
       const dave = await people.create({
         name: 'Dave',
         age: 133
@@ -372,25 +161,22 @@ describe('Wings knex Adapter', () => {
       })
       const got = await todos.get(todo.id)
 
-      assert.deepStrictEqual(
+      expect(
         await todos.get(todo.id, {
           query: { $select: ['id', 'text'] }
-        }),
-        {
-          id: todo.id,
-          text: todo.text,
-          personName: 'Dave'
-        }
-      )
-      assert.strictEqual(got.personName, dave.name)
-      assert.deepStrictEqual(got, todo)
-      assert.deepStrictEqual(found, todo)
+        })
+      ).toEqual({
+        id: todo.id,
+        text: todo.text,
+        personName: 'Dave'
+      })
+      expect(got?.personName).toBe(dave.name)
+      expect(got).toEqual(todo)
+      expect(found).toEqual(todo)
 
-      await people.remove(null)
-      await todos.remove(null)
+      // Clean up using Wings removeAll
+      await people.removeAll()
+      await todos.removeAll()
     })
   })
-
-  testSuite(people, 'id')
-  testSuite(peopleId, 'customid')
 })

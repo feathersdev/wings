@@ -1,5 +1,6 @@
 {
   "name": "@wingshq/adapter-tests",
+  "type": "module",
   "version": "0.0.0",
   "description": "Wings test suite for consistent, reliable database adapters",
   "homepage": "https://wings.codes",
@@ -28,22 +29,26 @@
   "engines": {
     "node": ">= 20"
   },
-  "module": "./esm/index.js",
-  "main": "./lib/index.js",
+  "module": "./esm/src/index.js",
+  "main": "./lib/src/index.js",
   "types": "./src/index.ts",
   "exports": {
     ".": {
-      "import": "./esm/index.js",
-      "require": "./lib/index.js",
-      "types": "./src/index.ts"
+      "types": "./src/index.ts",
+      "development": "./src/index.ts",
+      "import": "./esm/src/index.js",
+      "require": "./lib/src/index.js"
     }
   },
   "scripts": {
-    "prepublish": "npm run compile",
+    "prepublish": "pnpm run compile",
     "compile:lib": "shx rm -rf lib/ && tsc --module commonjs",
-    "compile:esm": "shx rm -rf esm/ && tsc --module es2020 --outDir esm",
-    "compile": "npm run compile:lib && npm run compile:esm",
-    "test": "npm run compile && node --require ts-node/register --test test/**.test.ts"
+    "compile:esm": "shx rm -rf esm/ && tsc -p tsconfig.esm.json",
+    "compile": "echo 'Skipping compilation for test package'",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\" --max-warnings 0",
+    "lint:fix": "eslint \"src/**/*.ts\" \"test/**/*.ts\" --fix && prettier \"src/**/*.ts\" \"test/**/*.ts\" --write"
   },
   "files": [
     "CHANGELOG.md",
@@ -56,12 +61,19 @@
     "access": "public"
   },
   "dependencies": {
-    "@wingshq/adapter-commons": "^0.0.0"
+    "@wingshq/adapter-commons": "workspace:*"
   },
   "devDependencies": {
+    "@eslint/js": "^9.31.0",
     "@types/node": "^20.4.2",
+    "@typescript-eslint/eslint-plugin": "^8.38.0",
+    "@typescript-eslint/parser": "^8.38.0",
+    "eslint": "^9.31.0",
+    "eslint-config-prettier": "^10.1.8",
+    "prettier": "^3.6.2",
     "shx": "^0.3.4",
-    "ts-node": "^10.9.1",
-    "typescript": "^5.1.6"
+    "typescript": "^5.1.6",
+    "typescript-eslint": "^8.38.0",
+    "vitest": "^3.2.4"
   }
 }

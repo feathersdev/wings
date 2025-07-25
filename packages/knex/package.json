@@ -1,5 +1,6 @@
 {
   "name": "@wingshq/knex",
+  "type": "module",
   "description": "A Wings adapter for KnexJS",
   "version": "0.0.0",
   "homepage": "https://wings.codes",
@@ -38,30 +39,51 @@
   "types": "./src/index.ts",
   "exports": {
     ".": {
+      "types": "./src/index.ts",
+      "development": "./src/index.ts",
       "import": "./esm/index.js",
-      "require": "./lib/index.js",
-      "types": "./src/index.ts"
+      "require": "./lib/index.js"
+    },
+    "./feathers": {
+      "types": "./src/feathers.ts",
+      "development": "./src/feathers.ts",
+      "import": "./esm/feathers.js",
+      "require": "./lib/feathers.js"
     }
   },
   "scripts": {
-    "prepublish": "npm run compile",
+    "prepublish": "pnpm run compile",
     "compile:lib": "shx rm -rf lib/ && tsc --module commonjs",
     "compile:esm": "shx rm -rf esm/ && tsc --module es2020 --outDir esm",
-    "compile": "npm run compile:lib && npm run compile:esm",
-    "test": "npm run compile && shx rm -f db.slite && node --require ts-node/register --test test/**.test.ts"
+    "compile": "pnpm run compile:lib && pnpm run compile:esm",
+    "test": "vitest run",
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\" --max-warnings 0",
+    "lint:fix": "eslint \"src/**/*.ts\" \"test/**/*.ts\" --fix && prettier \"src/**/*.ts\" \"test/**/*.ts\" --write"
   },
   "publishConfig": {
     "access": "public"
   },
   "dependencies": {
-    "@wingshq/adapter-commons": "^0.0.0",
+    "@wingshq/adapter-commons": "workspace:*",
     "@feathersjs/commons": "^5.0.11",
     "@feathersjs/errors": "^5.0.11",
     "knex": "^3.0.1"
   },
   "devDependencies": {
-    "@wingshq/adapter-tests": "^0.0.0",
+    "@wingshq/adapter-tests": "workspace:*",
+    "@eslint/js": "^9.31.0",
+    "@typescript-eslint/eslint-plugin": "^8.38.0",
+    "@typescript-eslint/parser": "^8.38.0",
+    "better-sqlite3": "^11.10.0",
+    "eslint": "^9.31.0",
+    "eslint-config-prettier": "^10.1.8",
+    "mysql2": "^3.13.5",
     "pg": "^8.11.3",
-    "sqlite3": "^5.1.6"
+    "prettier": "^3.6.2",
+    "shx": "^0.3.4",
+    "sqlite3": "^5.1.6",
+    "typescript": "^5.8.3",
+    "typescript-eslint": "^8.38.0",
+    "vitest": "^3.2.4"
   }
 }

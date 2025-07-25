@@ -33,17 +33,21 @@
   "types": "./src/index.ts",
   "exports": {
     ".": {
+      "types": "./src/index.ts",
+      "development": "./src/index.ts",
       "import": "./esm/index.js",
-      "require": "./lib/index.js",
-      "types": "./src/index.ts"
+      "require": "./lib/index.js"
     }
   },
   "scripts": {
-    "prepublish": "npm run compile",
+    "prepublish": "pnpm run compile",
     "compile:lib": "shx rm -rf lib/ && tsc --module commonjs",
     "compile:esm": "shx rm -rf esm/ && tsc --module es2020 --outDir esm",
-    "compile": "npm run compile:lib && npm run compile:esm",
-    "test": "npm run compile && node --require ts-node/register --test test/**.test.ts"
+    "compile": "pnpm run compile:lib && pnpm run compile:esm",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\" --max-warnings 0",
+    "lint:fix": "eslint \"src/**/*.ts\" \"test/**/*.ts\" --fix && prettier \"src/**/*.ts\" \"test/**/*.ts\" --write"
   },
   "files": [
     "CHANGELOG.md",
@@ -64,7 +68,8 @@
     "@types/node": "^20.4.2",
     "shx": "^0.3.4",
     "ts-node": "^10.9.1",
-    "typescript": "^5.1.6"
+    "typescript": "^5.1.6",
+    "vitest": "^3.2.4"
   },
   "gitHead": "90caf635aec850550b9d37bea2762af959d9e8d5"
 }

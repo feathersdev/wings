@@ -1,5 +1,4 @@
-import { describe, it, beforeEach } from 'node:test'
-import assert from 'assert'
+import { describe, it, beforeEach, expect } from 'vitest'
 import { sorter } from '../src'
 
 describe('@feathersjs/adapter-commons', () => {
@@ -18,7 +17,7 @@ describe('@feathersjs/adapter-commons', () => {
         name: -1
       })
 
-      assert.deepStrictEqual(array.sort(sort), [
+      expect(array.sort(sort)).toEqual([
         {
           name: 'Eric'
         },
@@ -42,7 +41,7 @@ describe('@feathersjs/adapter-commons', () => {
         names: -1
       })
 
-      assert.deepStrictEqual(array.sort(sort), [
+      expect(array.sort(sort)).toEqual([
         {
           names: ['c', 'd']
         },
@@ -72,7 +71,7 @@ describe('@feathersjs/adapter-commons', () => {
         names: 1
       })
 
-      assert.deepStrictEqual(array.sort(sort), [
+      expect(array.sort(sort)).toEqual([
         {
           names: {
             first: 'A',
@@ -113,7 +112,7 @@ describe('@feathersjs/adapter-commons', () => {
         counter: 1
       })
 
-      assert.deepStrictEqual(array.sort(sort), [
+      expect(array.sort(sort)).toEqual([
         { name: 'Eric', counter: 0 },
         { name: 'Eric', counter: 1 },
         { name: 'David', counter: 0 },
@@ -154,7 +153,7 @@ describe('@feathersjs/adapter-commons', () => {
         counter: 1
       })
 
-      assert.deepStrictEqual(array.sort(sort), [
+      expect(array.sort(sort)).toEqual([
         { name: 'Eric', counter: 0 },
         { name: 'Eric', counter: 1 },
         { name: 'David', counter: 0 },
@@ -204,7 +203,7 @@ describe('@feathersjs/adapter-commons', () => {
         age: -1
       })
 
-      assert.deepStrictEqual(array.sort(sort), [
+      expect(array.sort(sort)).toEqual([
         { name: 'Eric', counter: 0, age: 1 },
         { name: 'Eric', counter: 1, age: 2 },
         { name: 'David', counter: 0, age: 2 },
@@ -242,7 +241,7 @@ describe('@feathersjs/adapter-commons', () => {
         amount: -1
       })
 
-      assert.deepStrictEqual(data.sort(sort), [
+      expect(data.sort(sort)).toEqual([
         {
           _id: 2,
           item: { category: 'cookies', type: 'chocolate chip' },
@@ -266,7 +265,7 @@ describe('@feathersjs/adapter-commons', () => {
         'item.type': 1
       })
 
-      assert.deepStrictEqual(data.sort(sort), [
+      expect(data.sort(sort)).toEqual([
         { _id: 6, item: { category: 'brownies', type: 'blondie' }, amount: 10 },
         { _id: 5, item: { category: 'cake', type: 'carrot' }, amount: 20 },
         { _id: 1, item: { category: 'cake', type: 'chiffon' }, amount: 10 },
@@ -291,7 +290,7 @@ describe('@feathersjs/adapter-commons', () => {
         amount: 1
       })
 
-      assert.deepStrictEqual(data.sort(sort), [
+      expect(data.sort(sort)).toEqual([
         { _id: 6, item: { category: 'brownies', type: 'blondie' }, amount: 10 },
         { _id: 5, item: { category: 'cake', type: 'carrot' }, amount: 20 },
         { _id: 1, item: { category: 'cake', type: 'chiffon' }, amount: 10 },
@@ -316,7 +315,7 @@ describe('@feathersjs/adapter-commons', () => {
         amount: -1
       })
 
-      assert.deepStrictEqual(data.sort(sort), [
+      expect(data.sort(sort)).toEqual([
         { _id: 6, item: { category: 'brownies', type: 'blondie' }, amount: 10 },
         { _id: 5, item: { category: 'cake', type: 'carrot' }, amount: 20 },
         { _id: 1, item: { category: 'cake', type: 'chiffon' }, amount: 10 },
@@ -340,7 +339,7 @@ describe('@feathersjs/adapter-commons', () => {
         'item.category': 1
       })
 
-      assert.deepStrictEqual(data.sort(sort), [
+      expect(data.sort(sort)).toEqual([
         {
           _id: 2,
           item: { category: 'cookies', type: 'chocolate chip' },
@@ -364,7 +363,7 @@ describe('@feathersjs/adapter-commons', () => {
         amount: 1
       })
 
-      assert.deepStrictEqual(data.sort(sort), [
+      expect(data.sort(sort)).toEqual([
         { _id: 6, item: { category: 'brownies', type: 'blondie' }, amount: 10 },
         { _id: 1, item: { category: 'cake', type: 'chiffon' }, amount: 10 },
         { _id: 5, item: { category: 'cake', type: 'carrot' }, amount: 20 },

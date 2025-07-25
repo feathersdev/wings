@@ -1,47 +1,142 @@
 name: CI
 
-on: [push, pull_request]
+on:
+  push:
+    branches: [main, next]
+  pull_request:
+    branches: [main, next]
 
 jobs:
-  build:
+  test:
     runs-on: ubuntu-latest
-
     strategy:
       matrix:
-        node-version: [18.x, 20.x]
+        test-db: [sqlite, postgres, mysql]
+        
+    name: Test with ${{ matrix.test-db }}
 
     services:
       postgres:
-        image: postgres:latest
+        image: postgres:16
         env:
           POSTGRES_DB: feathers
           POSTGRES_PASSWORD: postgres
-          POSTGRES_PORT: 5432
           POSTGRES_USER: postgres
         ports:
-          - 5432:5432
+          - 15432:5432
         options: >-
           --health-cmd pg_isready
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
 
+      mongodb:
+        image: mongo:8
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --eval 'db.adminCommand(\"ping\")'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      mysql:
+        image: mysql:8
+        env:
+          MYSQL_ROOT_PASSWORD: mysql
+          MYSQL_DATABASE: feathers
+          MYSQL_USER: mysql
+          MYSQL_PASSWORD: mysql
+        ports:
+          - 23306:3306
+        options: >-
+          --health-cmd "mysqladmin ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     steps:
-      - uses: actions/checkout@v2
-      - name: Use Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v1
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
         with:
-          node-version: ${{ matrix.node-version }}
-      - run: npm i npm -g
-      - run: npm install -g codeclimate-test-reporter
-      - run: npm install
-      - run: npm test
+          version: 10.11.0
+
+      - name: Setup Node.js 20.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Setup better-sqlite3 bindings
+        run: |
+          # Install build dependencies
+          sudo apt-get update && sudo apt-get install -y python3 make g++ 
+
+          # First, find all better-sqlite3 installations
+          echo "=== Finding better-sqlite3 installations ==="
+          find . -path "*/node_modules/better-sqlite3" -type d | head -20
+
+          # Rebuild better-sqlite3 at workspace root first (for hoisted deps)
+          echo "=== Rebuilding better-sqlite3 at workspace root ==="
+          pnpm rebuild better-sqlite3 || echo "No better-sqlite3 at root"
+
+          # Force rebuild using npm in specific locations if pnpm fails
+          echo "=== Force rebuilding better-sqlite3 in all locations ==="
+          find . -path "*/node_modules/better-sqlite3" -type d | while read -r dir; do
+            echo "Rebuilding in: $dir"
+            (cd "$dir" && npm run install --build-from-source) || echo "Failed in $dir"
+          done
+
+          # Find and display where bindings were built
+          echo "=== Looking for better_sqlite3.node files ==="
+          find . -name "better_sqlite3.node" -type f 2>/dev/null || true
+
+      - name: Build packages
+        run: pnpm run compile
+
+      - name: Post-compile better-sqlite3 verification
+        run: |
+          # Sometimes compile step affects node_modules, rebuild again
+          echo "=== Post-compile rebuild of better-sqlite3 ==="
+          pnpm rebuild better-sqlite3
+
+          # Verify bindings in each package that uses better-sqlite3
+          echo "=== Verifying bindings in each package ==="
+          for pkg in db0 knex kysely; do
+            if [ -d "packages/$pkg" ]; then
+              echo "Checking packages/$pkg"
+              (cd "packages/$pkg" && node -e "try { require('better-sqlite3'); console.log('✓ better-sqlite3 OK in $pkg'); } catch(e) { console.log('✗ better-sqlite3 failed in $pkg:', e.message); }")
+            fi
+          done
+
+      - name: Run linter
+        run: pnpm run lint
+
+      - name: Run tests
+        run: |
+          # Run tests for all packages
+          pnpm --filter=@wingshq/adapter-commons test
+          pnpm --filter=@wingshq/adapter-tests test  
+          pnpm --filter=@wingshq/memory test
+          pnpm --filter=@wingshq/knex test
+          pnpm --filter=@wingshq/mongodb test
+          pnpm --filter=@wingshq/db0 test
+          pnpm --filter=@wingshq/kysely test
         env:
           CI: true
-          TEST_DB: postgres
-      - run: |
-          if [ "$CODECLIMATE_REPO_TOKEN" != "" ]; then
-            codeclimate-test-reporter < coverage/lcov.info
-          fi
-        env:
-          CODECLIMATE_REPO_TOKEN: ${{ secrets.codeclimate }}
+          TEST_DB: ${{ matrix.test-db }}
+          NODE_OPTIONS: --experimental-vm-modules
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./coverage/lcov.info
+          fail_ci_if_error: false
+          verbose: true

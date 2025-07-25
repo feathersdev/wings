@@ -1,16 +1,20 @@
 import { generator, toFile, writeJSON } from '@feathershq/pinion'
 import { AdapterContext } from '../adapter'
 
-export const generate = (context: AdapterContext) =>
+interface Context extends AdapterContext {}
+
+export const generate = (context: Context) =>
   generator(context).then(
-    writeJSON(
-      {
-        extends: '../../tsconfig',
+    writeJSON<Context>(
+      () => ({
+        extends: '../../tsconfig.json',
         include: ['src/**/*.ts'],
+        exclude: ['lib/**', 'esm/**', 'test/**'],
         compilerOptions: {
-          outDir: 'lib'
+          rootDir: './src',
+          outDir: './lib'
         }
-      },
-      toFile(context.packagePath, 'tsconfig.json')
+      }),
+      toFile('packages', context.name, 'tsconfig.json')
     )
   )

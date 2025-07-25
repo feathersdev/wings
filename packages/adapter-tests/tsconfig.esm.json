@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "outDir": "esm",
+    "module": "es2022",
+    "moduleResolution": "bundler",
+    "rewriteRelativeImportExtensions": true,
+    "allowImportingTsExtensions": true
+  }
+}

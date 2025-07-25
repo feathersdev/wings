@@ -1,0 +1,94 @@
+{
+  "name": "@wingshq/kysely",
+  "description": "A high-performance SQL query builder adapter for Wings and FeathersJS applications",
+  "version": "0.0.0",
+  "private": true,
+  "packageManager": "pnpm@10.11.0",
+  "homepage": "https://wings.codes",
+  "keywords": [
+    "wings",
+    "wings-adapter",
+    "kysely",
+    "sql",
+    "query-builder"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/wingshq/wings.git",
+    "directory": "packages/kysely"
+  },
+  "author": {
+    "name": "Wings contributors",
+    "email": "hello@feathersjs.com",
+    "url": "https://feathersjs.com"
+  },
+  "contributors": [],
+  "bugs": {
+    "url": "https://github.com/wingshq/wings/issues"
+  },
+  "engines": {
+    "node": ">= 20"
+  },
+  "files": [
+    "CHANGELOG.md",
+    "LICENSE",
+    "README.md",
+    "src/**",
+    "lib/**",
+    "esm/**"
+  ],
+  "module": "./esm/index.js",
+  "main": "./lib/index.js",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "development": "./src/index.ts",
+      "import": "./esm/index.js",
+      "require": "./lib/index.js"
+    },
+    "./feathers": {
+      "types": "./src/feathers.ts",
+      "development": "./src/feathers.ts",
+      "import": "./esm/feathers.js",
+      "require": "./lib/feathers.js"
+    }
+  },
+  "scripts": {
+    "prepublish": "npm run compile",
+    "compile": "npm run compile:lib && npm run compile:esm",
+    "compile:lib": "shx rm -rf lib/ && tsc --module commonjs",
+    "compile:esm": "shx rm -rf esm/ && tsc --module es2020 --outDir esm",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\" --max-warnings 0",
+    "lint:fix": "eslint \"src/**/*.ts\" \"test/**/*.ts\" --fix && prettier \"src/**/*.ts\" \"test/**/*.ts\" --write"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@feathersjs/errors": "^5.0.34",
+    "@wingshq/adapter-commons": "workspace:*",
+    "kysely": "^0.27.5"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.31.0",
+    "@types/better-sqlite3": "^7.6.11",
+    "@types/pg": "^8.15.4",
+    "@typescript-eslint/eslint-plugin": "^8.38.0",
+    "@typescript-eslint/parser": "^8.38.0",
+    "@wingshq/adapter-tests": "workspace:*",
+    "better-sqlite3": "^11.10.0",
+    "eslint": "^9.31.0",
+    "eslint-config-prettier": "^10.1.8",
+    "mysql2": "^3.13.5",
+    "pg": "^8.16.3",
+    "prettier": "^3.6.2",
+    "shx": "^0.3.4",
+    "typescript": "^5.8.3",
+    "typescript-eslint": "^8.38.0",
+    "vitest": "^3.2.4"
+  }
+}

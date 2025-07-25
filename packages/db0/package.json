@@ -1,0 +1,70 @@
+{
+  "name": "@wingshq/db0",
+  "version": "0.0.0",
+  "private": true,
+  "packageManager": "pnpm@10.11.0",
+  "description": "FeathersJS db0 integration",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "development": "./src/index.ts",
+      "import": "./esm/index.js",
+      "require": "./lib/index.js"
+    },
+    "./feathers": {
+      "types": "./src/feathers.ts",
+      "development": "./src/feathers.ts",
+      "import": "./esm/feathers.js",
+      "require": "./lib/feathers.js"
+    },
+    "./cloudflare": {
+      "types": "./src/connector-durable-object-sql.ts",
+      "import": "./esm/connector-durable-object-sql.js",
+      "require": "./lib/connector-durable-object-sql.js"
+    }
+  },
+  "module": "./esm/index.js",
+  "main": "./lib/index.js",
+  "types": "./src/index.ts",
+  "files": [
+    "src/**",
+    "lib/**",
+    "esm/**"
+  ],
+  "scripts": {
+    "prepublish": "npm run compile",
+    "compile": "npm run compile:lib && npm run compile:esm",
+    "compile:lib": "shx rm -rf lib/ && tsc --module commonjs",
+    "compile:esm": "shx rm -rf esm/ && tsc --module es2020 --outDir esm",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\" --max-warnings 0",
+    "lint:fix": "eslint \"src/**/*.ts\" \"test/**/*.ts\" --fix && prettier \"src/**/*.ts\" \"test/**/*.ts\" --write",
+    "cf:dev": "wrangler dev --config test/cf-worker/wrangler.jsonc",
+    "cf:start": "wrangler dev --config test/cf-worker/wrangler.jsonc",
+    "cf:deploy": "wrangler deploy --config test/cf-worker/wrangler.jsonc",
+    "cf:typegen": "wrangler types test/cf-worker/types.d.ts --config test/cf-worker/wrangler.jsonc"
+  },
+  "dependencies": {
+    "@feathersjs/errors": "^5.0.34",
+    "@wingshq/adapter-commons": "workspace:*",
+    "@wingshq/adapter-tests": "workspace:*",
+    "db0": "^0.3.2"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.31.0",
+    "@typescript-eslint/eslint-plugin": "^8.38.0",
+    "@typescript-eslint/parser": "^8.38.0",
+    "better-sqlite3": "^11.10.0",
+    "eslint": "^9.31.0",
+    "eslint-config-prettier": "^10.1.8",
+    "mysql2": "^3.13.5",
+    "pg": "^8.16.3",
+    "prettier": "^3.6.2",
+    "shx": "^0.3.4",
+    "typescript": "^5.8.3",
+    "typescript-eslint": "^8.38.0",
+    "vitest": "^3.2.4",
+    "wrangler": "^4.25.0"
+  }
+}
